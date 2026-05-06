@@ -21,8 +21,8 @@ class TextEmbedder:
         self.normalize = normalize
         self._client = httpx.Client(timeout=timeout)
         self._dim: int | None = None
-        # Лёгкий маркер для health-эндпоинта.
         self.model = "tei:remote"
+        self.model_name = f"tei:{endpoint}"
 
     def encode(
         self,
@@ -54,7 +54,8 @@ class TextEmbedder:
         return result
 
     def encode_single(self, text: str) -> np.ndarray:
-        return self.encode([text])[0]
+        result: np.ndarray = self.encode([text])
+        return result[0]
 
     @property
     def embedding_dim(self) -> int:

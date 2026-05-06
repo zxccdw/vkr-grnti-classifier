@@ -77,6 +77,7 @@ class Ontology:
             code = raw.get("code")
 
             llm_raw = raw.get("llm_descriptions") or raw.get("llm_description")
+            llm_descriptions: tuple[str, ...]
             if isinstance(llm_raw, str):
                 llm_descriptions = (llm_raw,) if llm_raw.strip() else ()
             elif isinstance(llm_raw, list):
