@@ -1,0 +1,41 @@
+services:
+  embeddings:
+    image: ghcr.io/huggingface/text-embeddings-inference:${TEI_IMAGE:-cpu-1.7}
+    command:
+      - --model-id=${EMBEDDING_MODEL:-BAAI/bge-m3}
+      - --port=80
+      - --max-batch-tokens=${TEI_MAX_BATCH_TOKENS:-16384}
+      - --max-client-batch-size=${TEI_MAX_CLIENT_BATCH_SIZE:-32}
+      - --max-concurrent-requests=${TEI_MAX_CONCURRENT:-512}
+    volumes:
+      - hf_cache:/data
+    environment:
+      - HUGGINGFACE_HUB_CACHE=/data
+    healthcheck:
+      test: ["CMD", "/bin/sh", "-c", "wget -qO- http://localhost:80/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 600s
+
+  web:
+    build: .
+    ports:
+      - "${WEB_HOST_PORT:-8080}:8000"
+    volumes:
+      - ./data:/app/data:ro
+    environment:
+      - ONTOLOGY_PATH=/app/data/ontology_grnti.json
+      - EMBEDDINGS_URL=http://embeddings:80
+    depends_on:
+      embeddings:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  hf_cache:

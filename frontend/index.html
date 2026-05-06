@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Классификатор ГРНТИ</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Классификатор ГРНТИ</h1>
+            <p class="subtitle">Автоматическая классификация научных работ</p>
+        </header>
+
+        <main>
+            <!-- Ввод текста -->
+            <section class="input-section">
+                <label for="text-input">Введите тему или описание работы:</label>
+                <textarea 
+                    id="text-input" 
+                    placeholder="Например: Разработка нейросетевой модели для диагностики заболеваний на основе МРТ-снимков"
+                    rows="4"
+                ></textarea>
+                
+                <!-- Переключатель режимов -->
+                <div class="mode-selector">
+                    <label class="mode-option">
+                        <input type="radio" name="mode" value="full" checked>
+                        <span class="mode-label">⚡ Быстрый поиск</span>
+                        <span class="mode-desc">Сразу топ-10 кодов L3</span>
+                    </label>
+                    <label class="mode-option">
+                        <input type="radio" name="mode" value="step">
+                        <span class="mode-label">🔨 Конструктор</span>
+                        <span class="mode-desc">Пошаговый выбор L1→L2→L3</span>
+                    </label>
+                </div>
+                
+                <button id="classify-btn" class="btn-primary">Классифицировать</button>
+                <span id="loader" class="loader" style="display: none;">⏳ Обработка...</span>
+                <div id="error-msg" class="error-msg" style="display: none;"></div>
+            </section>
+
+            <!-- Breadcrumbs (только для режима конструктора) -->
+            <div id="breadcrumbs" class="breadcrumbs" style="display: none;"></div>
+
+            <!-- Результаты -->
+            <section id="results-section" style="display: none;">
+                <h2 id="results-title">Результаты</h2>
+                <div id="results-grid" class="results-grid"></div>
+            </section>
+
+            <!-- Выбранные коды -->
+            <section id="selected-section" style="display: none;">
+                <h3>✓ Выбранные коды</h3>
+                <div id="selected-codes" class="selected-codes"></div>
+                <button id="export-btn" class="btn-secondary">Экспорт JSON</button>
+            </section>
+        </main>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
