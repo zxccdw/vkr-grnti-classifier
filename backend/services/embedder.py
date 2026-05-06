@@ -55,7 +55,8 @@ class TextEmbedder:
 
     def encode_single(self, text: str) -> np.ndarray:
         result: np.ndarray = self.encode([text])
-        return result[0]
+        vec: np.ndarray = result[0]
+        return vec
 
     @property
     def embedding_dim(self) -> int:
