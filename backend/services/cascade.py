@@ -113,7 +113,7 @@ class CascadeClassifier:
 
             for l3_node, l3_score in l3_ranked:
                 l1_score = l1_ranked[0][1] if l1_ranked else 1.0
-                final_score = np.power(l1_score * l2_agg_score * l3_score, 1/3)
+                final_score = np.power(l1_score * l2_agg_score * l3_score, 1 / 3)
                 full_path = path + [l3_node]
                 l3_results.append((full_path, float(final_score)))
 
