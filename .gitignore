@@ -48,8 +48,7 @@ htmlcov/
 # env
 .env
 
-# runtime data — не коммитим
-data/ontology_grnti.json
+# runtime data
 data/ontology_grnti.dirty.json
 data/snapshots/
 

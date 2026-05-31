@@ -9,7 +9,9 @@ RUN uv pip install --system -r pyproject.toml
 
 COPY backend/ ./backend/
 COPY frontend/ ./frontend/
-COPY data/ ./data/
+COPY data/ontology_grnti.json ./data/ontology_grnti.json
+
+RUN mkdir -p /app/data/snapshots
 
 EXPOSE 8000
 
