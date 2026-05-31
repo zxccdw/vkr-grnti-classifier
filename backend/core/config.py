@@ -18,6 +18,7 @@ class Settings(BaseSettings):
 
     data_dir: Path = Path("data")
     ontology_path: Path = data_dir / "ontology_grnti.json"
+    ontology_snapshots_dir: Path = data_dir / "snapshots"
 
     embeddings_url: str = "http://embeddings:80"
     embeddings_normalize: bool = True
@@ -25,6 +26,20 @@ class Settings(BaseSettings):
 
     default_top_k: int = 5
     beam_width: int = 5
+
+    llm_temperature: float = 0.3
+    llm_max_tokens: int = 512
+    llm_timeout: float = 60.0
+    mock_llm: bool = False
+
+    gigachat_base_url: str = ""
+    gigachat_token: str = ""
+    gigachat_model: str = "GigaChat-Pro"
+    gigachat_verify_ssl: bool = True
+
+    yagpt_base_url: str = ""
+    yagpt_token: str = ""
+    yagpt_model: str = "yandexgpt"
 
 
 @lru_cache

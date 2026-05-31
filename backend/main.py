@@ -5,24 +5,28 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from backend.api import classify, health
+from backend.api import classify, health, nodes
 from backend.core.config import get_settings
-from backend.core.dependencies import get_embedder, get_ontology
+from backend.core.dependencies import get_embedder, get_llm_providers, get_ontology
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("🔄 Loading embedder model...")
+    print("loading embedder...")
     embedder = get_embedder()
-    print(f"✅ Embedder loaded: {embedder.model_name} (dim={embedder.embedding_dim})")
+    print(f"embedder ready: {embedder.model_name} (dim={embedder.embedding_dim})")
 
-    print("🔄 Loading ontology...")
+    print("loading ontology...")
     ontology = get_ontology()
-    print(f"✅ Ontology loaded: {len(ontology)} nodes, max_depth={ontology.max_depth()}")
+    print(f"ontology ready: {len(ontology)} nodes, max_depth={ontology.max_depth()}")
+
+    providers = get_llm_providers()
+    names = [p.name for p in providers] or ["none"]
+    print(f"llm providers: {', '.join(names)}")
 
     yield
 
-    print("👋 Shutting down...")
+    print("shutdown")
 
 
 def create_app() -> FastAPI:
@@ -44,6 +48,7 @@ def create_app() -> FastAPI:
 
     app.include_router(health.router)
     app.include_router(classify.router, prefix=settings.api_v1_prefix)
+    app.include_router(nodes.router, prefix=settings.api_v1_prefix)
 
     try:
         app.mount("/static", StaticFiles(directory="frontend"), name="static")
@@ -51,8 +56,12 @@ def create_app() -> FastAPI:
         @app.get("/")
         def read_root():
             return FileResponse("frontend/index.html")
+
+        @app.get("/browse")
+        def read_browse():
+            return FileResponse("frontend/browse.html")
     except Exception as e:
-        print(f"⚠️  Warning: Could not mount frontend: {e}")
+        print(f"could not mount frontend: {e}")
 
     return app
 

@@ -44,3 +44,14 @@ htmlcov/
 
 # Docker
 .dockerignore
+
+# env
+.env
+
+# runtime data — не коммитим
+data/ontology_grnti.json
+data/ontology_grnti.dirty.json
+data/snapshots/
+
+# дизайн-доки локальные
+docs/

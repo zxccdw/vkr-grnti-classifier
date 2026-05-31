@@ -23,10 +23,20 @@ services:
     ports:
       - "${WEB_HOST_PORT:-8080}:8000"
     volumes:
-      - ./data:/app/data:ro
+      - ./data:/app/data
+      - ./frontend:/app/frontend:ro
     environment:
       - ONTOLOGY_PATH=/app/data/ontology_grnti.json
+      - ONTOLOGY_SNAPSHOTS_DIR=/app/data/snapshots
       - EMBEDDINGS_URL=http://embeddings:80
+      - GIGACHAT_BASE_URL=${GIGACHAT_BASE_URL:-}
+      - GIGACHAT_TOKEN=${GIGACHAT_TOKEN:-}
+      - GIGACHAT_MODEL=${GIGACHAT_MODEL:-GigaChat-Pro}
+      - GIGACHAT_VERIFY_SSL=${GIGACHAT_VERIFY_SSL:-true}
+      - YAGPT_BASE_URL=${YAGPT_BASE_URL:-}
+      - YAGPT_TOKEN=${YAGPT_TOKEN:-}
+      - YAGPT_MODEL=${YAGPT_MODEL:-yandexgpt}
+      - MOCK_LLM=${MOCK_LLM:-false}
     depends_on:
       embeddings:
         condition: service_healthy

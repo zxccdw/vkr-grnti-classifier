@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Обозреватель онтологии ГРНТИ</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="stylesheet" href="/static/browse.css?v=11">
+</head>
+<body class="browse-body">
+    <header class="browse-header">
+        <h1>Обозреватель онтологии ГРНТИ</h1>
+        <div class="header-actions">
+            <label class="btn-secondary header-btn" for="import-input">Загрузить JSON</label>
+            <input id="import-input" type="file" accept="application/json,.json" hidden>
+            <a class="btn-secondary header-btn" href="/api/v1/export/ontology.json" download>Скачать JSON</a>
+            <button id="merge-btn" class="btn-secondary">Объединить дубликаты</button>
+            <button id="backfill-btn" class="btn-secondary" disabled>Догнать описания</button>
+            <a href="/">← Классификатор</a>
+        </div>
+    </header>
+
+    <main class="browse-layout">
+        <aside class="panel panel-left">
+            <h2>Скоуп</h2>
+            <label for="l1-input">Раздел (L1):</label>
+            <div class="combobox" data-cb="l1">
+                <input id="l1-input" type="text" autocomplete="off"
+                       placeholder="Код или название (например: 34 или Биология)">
+                <div class="combobox-popup" hidden></div>
+            </div>
+
+            <label for="l2-input">Подраздел (L2):</label>
+            <div class="combobox" data-cb="l2">
+                <input id="l2-input" type="text" autocomplete="off" disabled
+                       placeholder="Опционально">
+                <div class="combobox-popup" hidden></div>
+            </div>
+
+            <label for="depth-input">Глубина (число шагов вниз)</label>
+            <input id="depth-input" type="number" min="1" max="10" value="3">
+
+            <button id="open-btn" class="btn-primary" disabled>Открыть</button>
+            <div id="status-msg" class="status-msg"></div>
+        </aside>
+
+        <section class="panel panel-center">
+            <svg id="graph"></svg>
+        </section>
+
+        <aside class="panel panel-right">
+            <h2>Узел</h2>
+            <div id="node-details" class="node-details">
+                <p class="muted">Кликни по узлу графа.</p>
+            </div>
+            <button id="add-btn" class="btn-primary" disabled>+ Создать дочерний</button>
+            <button id="attach-btn" class="btn-secondary" disabled>+ Привязать существующий</button>
+        </aside>
+    </main>
+
+    <div id="modal-add" class="modal" hidden>
+        <div class="modal-card">
+            <h3>Новый дочерний узел</h3>
+            <p id="modal-add-parent" class="muted"></p>
+            <label for="new-label">Название</label>
+            <input id="new-label" type="text" maxlength="300" placeholder="Например, Протеомика">
+            <label for="new-code">Код ГРНТИ</label>
+            <input id="new-code" type="text" maxlength="50" placeholder="34.15.99">
+            <div id="modal-add-error" class="error-msg" hidden></div>
+            <div class="modal-actions">
+                <button id="modal-add-cancel" class="btn-secondary">Отмена</button>
+                <button id="modal-add-submit" class="btn-primary">Создать + сгенерировать</button>
+            </div>
+            <div id="modal-add-loader" class="muted" hidden>LLM думают…</div>
+        </div>
+    </div>
+
+    <div id="modal-attach" class="modal" hidden>
+        <div class="modal-card">
+            <h3>Привязать существующий узел</h3>
+            <p id="modal-attach-parent" class="muted"></p>
+            <label for="attach-target">Целевой узел</label>
+            <div class="combobox" data-cb="attach">
+                <input id="attach-target" type="text" autocomplete="off"
+                       placeholder="Код или название узла">
+                <div class="combobox-popup" hidden></div>
+            </div>
+            <div id="modal-attach-error" class="error-msg" hidden></div>
+            <div class="modal-actions">
+                <button id="modal-attach-cancel" class="btn-secondary">Отмена</button>
+                <button id="modal-attach-submit" class="btn-primary">Привязать + сгенерировать</button>
+            </div>
+            <div id="modal-attach-loader" class="muted" hidden>LLM думают…</div>
+        </div>
+    </div>
+
+    <div id="toasts" class="toasts" aria-live="polite"></div>
+
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="/static/browse.js?v=11"></script>
+</body>
+</html>

@@ -30,6 +30,10 @@ class Ontology:
     nodes_by_id: dict[str, Node]
     root_id: str
     code_index: dict[str, str]
+    edge_descriptions: dict[tuple[str, str], tuple[str, ...]] = field(default_factory=dict)
+
+    def edge_anchors(self, parent_id: str, child_id: str) -> tuple[str, ...]:
+        return self.edge_descriptions.get((parent_id, child_id), ())
 
     @classmethod
     def from_json(cls, path: str | Path) -> Ontology:
@@ -46,28 +50,42 @@ class Ontology:
             raise ValueError(f"Multiple predicates found: {predicates}")
 
         children_map: dict[str, list[str]] = defaultdict(list)
-        parents_map: dict[str, str] = {}
+        parents_map: dict[str, list[str]] = defaultdict(list)
+        edge_descriptions: dict[tuple[str, str], tuple[str, ...]] = {}
         for link in raw_links:
             children_map[link["source"]].append(link["target"])
-            if link["target"] in parents_map:
-                raise ValueError(f"Node {link['target']} has multiple parents")
-            parents_map[link["target"]] = link["source"]
+            parents_map[link["target"]].append(link["source"])
+            raw_descriptions = link.get("llm_descriptions") or []
+            texts: list[str] = []
+            for d in raw_descriptions:
+                if isinstance(d, dict) and "text" in d:
+                    text = (d.get("text") or "").strip()
+                    if text:
+                        texts.append(text)
+                elif isinstance(d, str) and d.strip():
+                    texts.append(d.strip())
+            if texts:
+                edge_descriptions[(link["source"], link["target"])] = tuple(texts)
 
         all_ids = {n["id"] for n in raw_nodes}
         roots = [nid for nid in all_ids if nid not in parents_map]
-        if len(roots) != 1:
-            raise ValueError(f"Expected exactly one root, found {len(roots)}")
-        root_id = roots[0]
+        if not roots:
+            raise ValueError("No root nodes found")
+        root_id = next(
+            (nid for nid in roots if nid.endswith("grnti_root") or nid.endswith("/root")),
+            roots[0],
+        )
 
-        depth_by_id: dict[str, int] = {root_id: 0}
-        frontier = [root_id]
+        depth_by_id: dict[str, int] = dict.fromkeys(roots, 0)
+        frontier = list(roots)
         while frontier:
             next_frontier: list[str] = []
             for nid in frontier:
                 d = depth_by_id[nid]
                 for child in children_map.get(nid, []):
-                    depth_by_id[child] = d + 1
-                    next_frontier.append(child)
+                    if child not in depth_by_id:
+                        depth_by_id[child] = d + 1
+                        next_frontier.append(child)
             frontier = next_frontier
 
         nodes_by_id: dict[str, Node] = {}
@@ -85,6 +103,7 @@ class Ontology:
             else:
                 llm_descriptions = ()
 
+            node_parents = parents_map.get(nid, [])
             node = Node(
                 id=nid,
                 code=code,
@@ -92,8 +111,8 @@ class Ontology:
                 label=raw.get("label", ""),
                 full_label=raw.get("full_label", raw.get("label", "")),
                 description=raw.get("description", ""),
-                parent_id=parents_map.get(nid),
-                children_ids=tuple(sorted(children_map.get(nid, []))),
+                parent_id=node_parents[0] if node_parents else None,
+                children_ids=tuple(sorted(set(children_map.get(nid, [])))),
                 llm_descriptions=llm_descriptions,
             )
             nodes_by_id[nid] = node
@@ -102,11 +121,12 @@ class Ontology:
                     raise ValueError(f"Duplicate code {code!r}: {code_index[code]} vs {nid}")
                 code_index[code] = nid
 
-        if any(n.depth < 0 for n in nodes_by_id.values()):
-            disconnected = [n.id for n in nodes_by_id.values() if n.depth < 0]
-            raise ValueError(f"Disconnected nodes: {disconnected[:5]}")
-
-        return cls(nodes_by_id=nodes_by_id, root_id=root_id, code_index=code_index)
+        return cls(
+            nodes_by_id=nodes_by_id,
+            root_id=root_id,
+            code_index=code_index,
+            edge_descriptions=edge_descriptions,
+        )
 
     def node(self, id_or_code: str) -> Node:
         if id_or_code in self.nodes_by_id:
