@@ -170,8 +170,11 @@ async def test_attach_leaf_under_root_rejected_by_code_prefix() -> None:
 async def test_attach_under_l3_with_matching_code_prefix_is_allowed() -> None:
     deep_target = NodeId("deep")
     deep_node = Node(
-        id=deep_target, label="Deep", code="34.15.23.7",
-        full_label="Deep", kind=NodeKind.LEAF,
+        id=deep_target,
+        label="Deep",
+        code="34.15.23.7",
+        full_label="Deep",
+        kind=NodeKind.LEAF,
     )
     NODES[deep_target] = deep_node
     PATHS[deep_target] = [deep_node]
@@ -199,8 +202,11 @@ async def test_attach_l3_to_l2_rejected_by_code_prefix() -> None:
 async def test_attach_sibling_l1_to_l1_rejected() -> None:
     other_l1 = NodeId("other_l1")
     NODES[other_l1] = Node(
-        id=other_l1, label="Экономика", code="47",
-        full_label="Экономика", kind=NodeKind.SECTION,
+        id=other_l1,
+        label="Экономика",
+        code="47",
+        full_label="Экономика",
+        kind=NodeKind.SECTION,
     )
     PATHS[other_l1] = [NODES[other_l1]]
 
@@ -220,8 +226,11 @@ async def test_attach_l2_to_root_rejected() -> None:
 async def test_attach_to_l1_under_root_accepted() -> None:
     new_l1 = NodeId("new_l1")
     NODES[new_l1] = Node(
-        id=new_l1, label="Новый раздел", code="99",
-        full_label="Новый раздел", kind=NodeKind.SECTION,
+        id=new_l1,
+        label="Новый раздел",
+        code="99",
+        full_label="Новый раздел",
+        kind=NodeKind.SECTION,
     )
     PATHS[new_l1] = [NODES[new_l1]]
 
@@ -235,8 +244,11 @@ async def test_attach_to_l1_under_root_accepted() -> None:
 async def test_attach_with_target_having_dot_under_root_rejected() -> None:
     sub_node = NodeId("sub")
     NODES[sub_node] = Node(
-        id=sub_node, label="X", code="34.15",
-        full_label="X", kind=NodeKind.SUBSECTION,
+        id=sub_node,
+        label="X",
+        code="34.15",
+        full_label="X",
+        kind=NodeKind.SUBSECTION,
     )
     PATHS[sub_node] = [NODES[sub_node]]
 
@@ -257,8 +269,11 @@ async def test_attach_skip_level_l1_to_l3_allowed_by_code_prefix() -> None:
 async def test_attach_unrelated_code_rejected() -> None:
     other = NodeId("other")
     NODES[other] = Node(
-        id=other, label="Other", code="47.37",
-        full_label="Other", kind=NodeKind.SUBSECTION,
+        id=other,
+        label="Other",
+        code="47.37",
+        full_label="Other",
+        kind=NodeKind.SUBSECTION,
     )
     PATHS[other] = [NODES[other]]
 

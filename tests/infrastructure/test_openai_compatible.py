@@ -28,13 +28,7 @@ async def test_describe_splits_fragments_from_chat_completion_response() -> None
         return httpx.Response(
             200,
             json={
-                "choices": [
-                    {
-                        "message": {
-                            "content": "first fragment\nsecond fragment\n\nthird"
-                        }
-                    }
-                ]
+                "choices": [{"message": {"content": "first fragment\nsecond fragment\n\nthird"}}]
             },
         )
 
@@ -82,11 +76,7 @@ async def test_describe_drops_blank_lines() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(
             200,
-            json={
-                "choices": [
-                    {"message": {"content": "  \n  \n  one  \n   \n  two  \n  "}}
-                ]
-            },
+            json={"choices": [{"message": {"content": "  \n  \n  one  \n   \n  two  \n  "}}]},
         )
 
     provider = _provider(httpx.MockTransport(handler))

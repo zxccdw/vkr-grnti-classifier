@@ -74,8 +74,7 @@ class JsonOntologyRepository:
 
     def parents_of(self, id: NodeId) -> list[Node]:
         parents: list[Node] = [
-            _node_from_raw(self._nodes_by_id[p])
-            for p in self._incoming.get(id.value, [])
+            _node_from_raw(self._nodes_by_id[p]) for p in self._incoming.get(id.value, [])
         ]
         for edge in self._pending_edges:
             if edge.target != id:
@@ -197,8 +196,7 @@ class JsonOntologyRepository:
         ]
         self._nodes_by_id.pop(id.value, None)
         self._edges_by_key = {
-            k: v for k, v in self._edges_by_key.items()
-            if k[0] != id.value and k[1] != id.value
+            k: v for k, v in self._edges_by_key.items() if k[0] != id.value and k[1] != id.value
         }
         self._incoming.pop(id.value, None)
         self._outgoing.pop(id.value, None)
@@ -226,9 +224,7 @@ class JsonOntologyRepository:
     def import_payload(self, payload: dict) -> None:
         if not isinstance(payload, dict):
             raise ValueError("payload must be a JSON object")
-        if not isinstance(payload.get("nodes"), list) or not isinstance(
-            payload.get("links"), list
-        ):
+        if not isinstance(payload.get("nodes"), list) or not isinstance(payload.get("links"), list):
             raise ValueError("payload must contain lists 'nodes' and 'links'")
         Ontology.from_payload(payload)
         self._snapshot()
@@ -357,7 +353,6 @@ class JsonOntologyRepository:
             self._edges_by_key[key] = link
             self._incoming[link["target"]].append(link["source"])
             self._outgoing[link["source"]].append(link["target"])
-
 
     def _find_edge_key(self, source: str, target: str) -> EdgeKey | None:
         for key in self._edges_by_key:

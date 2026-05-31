@@ -69,9 +69,7 @@ def _validate_hierarchy(source: Node, target: Node) -> None:
         raise InvalidDepth("target without code cannot be attached")
     if source.code is None:
         if "." in target.code:
-            raise InvalidDepth(
-                f"root can only contain L1 nodes (no dots), got '{target.code}'"
-            )
+            raise InvalidDepth(f"root can only contain L1 nodes (no dots), got '{target.code}'")
         return
     expected_prefix = source.code + "."
     if not target.code.startswith(expected_prefix):

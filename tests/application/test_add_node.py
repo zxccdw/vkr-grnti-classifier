@@ -140,9 +140,7 @@ async def test_parent_is_leaf_is_allowed() -> None:
     onto = FakeOntology()
     use_case = AddNode(onto, [FakeProvider("g", ["t"])])
 
-    result = await use_case.execute(
-        AddNodeCommand(parent_id=L3, label="Sub", code="34.15.23.1")
-    )
+    result = await use_case.execute(AddNodeCommand(parent_id=L3, label="Sub", code="34.15.23.1"))
 
     assert result.node.label == "Sub"
     assert len(onto.added_nodes) == 1

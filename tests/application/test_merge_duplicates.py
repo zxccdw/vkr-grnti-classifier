@@ -30,15 +30,21 @@ class FakeOntology:
         }
         self._edges: dict[tuple[NodeId, NodeId, str], Edge] = {
             (L1_BIO, N_34_01, PREDICATE_CONTAINS): Edge(
-                source=L1_BIO, target=N_34_01, predicate=PREDICATE_CONTAINS,
+                source=L1_BIO,
+                target=N_34_01,
+                predicate=PREDICATE_CONTAINS,
                 descriptions=(Description(text="bio context", source="gigachat"),),
             ),
             (L1_ECON, N_47_01, PREDICATE_CONTAINS): Edge(
-                source=L1_ECON, target=N_47_01, predicate=PREDICATE_CONTAINS,
+                source=L1_ECON,
+                target=N_47_01,
+                predicate=PREDICATE_CONTAINS,
                 descriptions=(Description(text="econ context", source="gigachat"),),
             ),
             (L1_BIO, N_UNIQUE, PREDICATE_CONTAINS): Edge(
-                source=L1_BIO, target=N_UNIQUE, predicate=PREDICATE_CONTAINS,
+                source=L1_BIO,
+                target=N_UNIQUE,
+                predicate=PREDICATE_CONTAINS,
             ),
         }
         self.commits = 0
@@ -78,7 +84,10 @@ class FakeOntology:
         self._edges.pop((source, target, predicate), None)
 
     def update_edge_descriptions(
-        self, source: NodeId, target: NodeId, predicate: str,
+        self,
+        source: NodeId,
+        target: NodeId,
+        predicate: str,
         descriptions: tuple[Description, ...],
     ) -> None:
         raise NotImplementedError
@@ -109,9 +118,7 @@ def test_canonical_concept_receives_all_parents() -> None:
     onto = FakeOntology()
     MergeDuplicatesByLabel(onto).execute()
 
-    concept_id = NodeId(
-        "http://example.org/competencies#CONCEPT_01_Общие_вопросы"
-    )
+    concept_id = NodeId("http://example.org/competencies#CONCEPT_01_Общие_вопросы")
     assert concept_id in {n.id for n in onto.all_nodes()}
     parents = {p.id for p in onto.parents_of(concept_id)}
     assert parents == {L1_BIO, L1_ECON}
@@ -121,9 +128,7 @@ def test_per_parent_descriptions_kept_on_edges() -> None:
     onto = FakeOntology()
     MergeDuplicatesByLabel(onto).execute()
 
-    concept_id = NodeId(
-        "http://example.org/competencies#CONCEPT_01_Общие_вопросы"
-    )
+    concept_id = NodeId("http://example.org/competencies#CONCEPT_01_Общие_вопросы")
     bio_edge = onto.get_edge(L1_BIO, concept_id, PREDICATE_CONTAINS)
     econ_edge = onto.get_edge(L1_ECON, concept_id, PREDICATE_CONTAINS)
     assert [d.text for d in bio_edge.descriptions] == ["bio context"]
@@ -153,7 +158,9 @@ def test_same_label_different_suffix_not_merged() -> None:
     diff_suffix = NodeId("diff")
     onto.add_node(_node(diff_suffix, "Общие вопросы", "47.99"))
     onto._edges[(L1_ECON, diff_suffix, PREDICATE_CONTAINS)] = Edge(
-        source=L1_ECON, target=diff_suffix, predicate=PREDICATE_CONTAINS,
+        source=L1_ECON,
+        target=diff_suffix,
+        predicate=PREDICATE_CONTAINS,
     )
     onto.remove_node(N_47_01)
 
@@ -168,7 +175,9 @@ def test_node_without_code_skipped() -> None:
     no_code = NodeId("no-code")
     onto.add_node(_node(no_code, "Общие вопросы", None))
     onto._edges[(L1_BIO, no_code, PREDICATE_CONTAINS)] = Edge(
-        source=L1_BIO, target=no_code, predicate=PREDICATE_CONTAINS,
+        source=L1_BIO,
+        target=no_code,
+        predicate=PREDICATE_CONTAINS,
     )
 
     MergeDuplicatesByLabel(onto).execute()
@@ -180,10 +189,7 @@ def test_canonical_uri_contains_suffix_and_label() -> None:
     onto = FakeOntology()
     MergeDuplicatesByLabel(onto).execute()
 
-    concept_ids = [
-        n.id.value for n in onto.all_nodes()
-        if "CONCEPT_" in n.id.value
-    ]
+    concept_ids = [n.id.value for n in onto.all_nodes() if "CONCEPT_" in n.id.value]
     assert any("CONCEPT_01_Общие_вопросы" in cid for cid in concept_ids)
 
 
@@ -191,9 +197,7 @@ def test_canonical_node_has_no_code() -> None:
     onto = FakeOntology()
     MergeDuplicatesByLabel(onto).execute()
 
-    concept_id = NodeId(
-        "http://example.org/competencies#CONCEPT_01_Общие_вопросы"
-    )
+    concept_id = NodeId("http://example.org/competencies#CONCEPT_01_Общие_вопросы")
     concept_node = onto.get_node(concept_id)
     assert concept_node.code is None
     assert concept_node.label == "Общие вопросы"
@@ -207,10 +211,14 @@ def test_multiple_distinct_groups_merge_independently() -> None:
     onto.add_node(_node(info_a, "Информационная деятельность", "34.29"))
     onto.add_node(_node(info_b, "Информационная деятельность", "47.29"))
     onto._edges[(L1_BIO, info_a, PREDICATE_CONTAINS)] = Edge(
-        source=L1_BIO, target=info_a, predicate=PREDICATE_CONTAINS,
+        source=L1_BIO,
+        target=info_a,
+        predicate=PREDICATE_CONTAINS,
     )
     onto._edges[(L1_ECON, info_b, PREDICATE_CONTAINS)] = Edge(
-        source=L1_ECON, target=info_b, predicate=PREDICATE_CONTAINS,
+        source=L1_ECON,
+        target=info_b,
+        predicate=PREDICATE_CONTAINS,
     )
 
     report = MergeDuplicatesByLabel(onto).execute()

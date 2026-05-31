@@ -328,8 +328,11 @@ def test_subgraph_supports_deep_max_depth(client_ok: TestClient) -> None:
     )
     client_ok.post(
         "/api/v1/nodes/with-edge",
-        json={"parent_id": "http://example.org/competencies#GRNTI_34_15_23_1",
-              "label": "L5 node", "code": "34.15.23.1.1"},
+        json={
+            "parent_id": "http://example.org/competencies#GRNTI_34_15_23_1",
+            "label": "L5 node",
+            "code": "34.15.23.1.1",
+        },
     )
     response = client_ok.get(
         "/api/v1/subgraph",
@@ -342,9 +345,7 @@ def test_subgraph_supports_deep_max_depth(client_ok: TestClient) -> None:
 
 
 def test_subgraph_max_depth_above_10_rejected(client_ok: TestClient) -> None:
-    response = client_ok.get(
-        "/api/v1/subgraph", params={"root_id": L1_ID, "max_depth": 99}
-    )
+    response = client_ok.get("/api/v1/subgraph", params={"root_id": L1_ID, "max_depth": 99})
     assert response.status_code == 422
 
 
@@ -357,9 +358,7 @@ def test_create_node_under_leaf_returns_201(client_ok: TestClient) -> None:
 
 
 def test_attach_deep_leaf_under_l3_returns_201(client_ok: TestClient) -> None:
-    client_ok.post(
-        "/api/v1/nodes", json={"label": "Sub leaf", "code": "34.15.23.5"}
-    )
+    client_ok.post("/api/v1/nodes", json={"label": "Sub leaf", "code": "34.15.23.5"})
     response = client_ok.post(
         "/api/v1/edges",
         json={

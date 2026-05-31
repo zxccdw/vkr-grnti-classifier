@@ -299,10 +299,7 @@ def test_remove_node_drops_node_and_all_incident_edges(
 ) -> None:
     repo.remove_node(NodeId(L3_ID))
     assert L3_ID not in {n.id.value for n in repo.all_nodes()}
-    assert all(
-        not (e.source.value == L3_ID or e.target.value == L3_ID)
-        for e in repo.all_edges()
-    )
+    assert all(not (e.source.value == L3_ID or e.target.value == L3_ID) for e in repo.all_edges())
 
 
 def test_remove_node_missing_raises(repo: JsonOntologyRepository) -> None:
@@ -344,9 +341,7 @@ def test_remove_edge_missing_raises(repo: JsonOntologyRepository) -> None:
         repo.remove_edge(NodeId("urn:nope"), NodeId(L3_ID), PREDICATE_CONTAINS)
 
 
-def test_import_payload_replaces_ontology(
-    repo: JsonOntologyRepository, tmp_path: Path
-) -> None:
+def test_import_payload_replaces_ontology(repo: JsonOntologyRepository, tmp_path: Path) -> None:
     new_payload = {
         "nodes": [
             {"id": "urn:fresh:root", "label": "Root", "code": None},

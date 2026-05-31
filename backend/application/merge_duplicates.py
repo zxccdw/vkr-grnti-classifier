@@ -44,9 +44,7 @@ class MergeDuplicatesByLabel:
             edges_redirected=edges_redirected,
         )
 
-    def _merge_group(
-        self, canonical_id: NodeId, label: str, members: list[Node]
-    ) -> int:
+    def _merge_group(self, canonical_id: NodeId, label: str, members: list[Node]) -> int:
         canonical = Node(
             id=canonical_id,
             label=label,
@@ -91,11 +89,5 @@ def _group_duplicates(nodes: list[Node]) -> dict[tuple[str, str], list[Node]]:
 
 
 def _make_concept_id(suffix: str, label: str) -> NodeId:
-    slug = (
-        label.strip()
-        .replace(" ", "_")
-        .replace(".", "")
-        .replace(",", "")
-        .replace("/", "_")
-    )
+    slug = label.strip().replace(" ", "_").replace(".", "").replace(",", "").replace("/", "_")
     return NodeId(f"{_CONCEPT_PREFIX}{suffix}_{slug}")
