@@ -368,9 +368,17 @@ function renderGraph(sg) {
     const width = svgEl.clientWidth;
     const height = svgEl.clientHeight;
 
+    // preserve current zoom/pan so re-renders don't disorient the user
+    let savedTransform = null;
+    try { savedTransform = d3.zoomTransform(svgEl); } catch (_) {}
+
     els.svg.selectAll("*").remove();
     const root = els.svg.append("g");
-    els.svg.call(d3.zoom().scaleExtent([0.2, 4]).on("zoom", (e) => root.attr("transform", e.transform)));
+    const zoom = d3.zoom().scaleExtent([0.2, 4]).on("zoom", (e) => root.attr("transform", e.transform));
+    els.svg.call(zoom);
+    if (savedTransform && savedTransform.k !== 1) {
+        els.svg.call(zoom.transform, savedTransform);
+    }
 
     const nodes = sg.nodes.map((n) => ({ ...n }));
     const links = sg.edges.map((e) => ({
@@ -599,13 +607,44 @@ async function submitAddNode() {
             const detail = (await resp.json().catch(() => ({}))).detail || `HTTP ${resp.status}`;
             throw new Error(detail);
         }
+        const data = await resp.json();
         els.modalAdd.hidden = true;
-        toast("Узел создан. Нажми «Догнать описания» чтобы сгенерировать описание через LLM.", "success");
+        toast("Узел создан, описание генерируется…", "success");
         await openScope();
+        if (data.node) {
+            selectNode(data.node.id);
+            pollForDescriptions(data.node.id);
+        }
     } catch (e) {
         showError(els.modalAddError, e.message);
         els.modalAddSubmit.disabled = false;
         els.modalAddLoader.hidden = true;
+    }
+}
+
+async function pollForDescriptions(targetNodeId) {
+    for (let i = 0; i < 12; i++) {
+        await new Promise((r) => setTimeout(r, 4000));
+        const rootId = state.selectedL2 || state.selectedL1;
+        if (!rootId) return;
+        try {
+            const depthVal = parseInt(els.depth.value, 10);
+            const depth = Number.isFinite(depthVal) && depthVal >= 1
+                ? Math.min(depthVal, 10)
+                : (state.selectedL2 ? 3 : 4);
+            const sg = await fetchSubgraph(rootId, depth);
+            const edge = sg.edges.find((e) => e.target === targetNodeId);
+            if (!edge) return;
+            if (edge.descriptions.length > 0) {
+                renderGraph(sg);
+                updateBackfillBtn(sg);
+                setStatus(`${sg.nodes.length} узлов, ${sg.edges.length} рёбер`);
+                toast("LLM-описание готово", "success");
+                return;
+            }
+        } catch (_) {
+            return;
+        }
     }
 }
 

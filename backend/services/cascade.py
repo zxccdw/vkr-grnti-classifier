@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import gzip
+import pickle
+from pathlib import Path
+
 import numpy as np
 
 from backend.services.embedder import TextEmbedder
@@ -12,22 +16,47 @@ class CascadeClassifier:
         self.ontology = ontology
         self._anchor_cache: dict[tuple[str, str], np.ndarray] = {}
 
-    def _get_contextual_embeddings(self, parent_id: str, node: Node) -> np.ndarray:
-        key = (parent_id, node.id)
-        if key not in self._anchor_cache:
-            anchors = list(build_anchor_texts(node))
-            anchors.extend(self.ontology.edge_anchors(parent_id, node.id))
-            seen: set[str] = set()
-            deduped: list[str] = []
-            for a in anchors:
-                if a and a not in seen:
-                    seen.add(a)
-                    deduped.append(a)
-            if not deduped:
-                deduped = [node.label or node.id]
-            embs = np.stack([self.embedder.encode_single(a) for a in deduped])
-            self._anchor_cache[key] = embs
-        return self._anchor_cache[key]
+    def save_cache(self, path: Path | str) -> int:
+        data = {k: v.astype(np.float16) for k, v in self._anchor_cache.items()}
+        with gzip.open(str(path), "wb", compresslevel=6) as f:
+            pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
+        return len(data)
+
+    def load_cache(self, path: Path | str) -> int:
+        with gzip.open(str(path), "rb") as f:
+            data: dict = pickle.load(f)
+        for k, v in data.items():
+            if k not in self._anchor_cache:
+                self._anchor_cache[k] = np.asarray(v, dtype=np.float32)
+        return len(data)
+
+    def _anchor_texts(self, parent_id: str, node: Node) -> list[str]:
+        anchors = list(build_anchor_texts(node))
+        anchors.extend(self.ontology.edge_anchors(parent_id, node.id))
+        seen: set[str] = set()
+        deduped: list[str] = []
+        for a in anchors:
+            if a and a not in seen:
+                seen.add(a)
+                deduped.append(a)
+        return deduped or [node.label or node.id]
+
+    def _prefill_cache(self, parent_id: str, nodes: list[Node]) -> None:
+        """Batch-encode anchors for all uncached nodes in one API call."""
+        missing = [n for n in nodes if (parent_id, n.id) not in self._anchor_cache]
+        if not missing:
+            return
+        per_node = [self._anchor_texts(parent_id, n) for n in missing]
+        flat: list[str] = []
+        offsets: list[int] = []
+        for texts in per_node:
+            offsets.append(len(flat))
+            flat.extend(texts)
+        all_embs = self.embedder.encode(flat)
+        for j, node in enumerate(missing):
+            start = offsets[j]
+            end = offsets[j + 1] if j + 1 < len(offsets) else len(flat)
+            self._anchor_cache[(parent_id, node.id)] = all_embs[start:end]
 
     def _compute_similarities(
         self,
@@ -37,13 +66,12 @@ class CascadeClassifier:
     ) -> list[tuple[Node, float]]:
         if not nodes:
             return []
-
+        self._prefill_cache(parent_id, nodes)
         similarities = np.empty(len(nodes), dtype=np.float32)
         for i, node in enumerate(nodes):
-            anchor_embs = self._get_contextual_embeddings(parent_id, node)
+            anchor_embs = self._anchor_cache[(parent_id, node.id)]
             similarities[i] = float(np.max(anchor_embs @ query_emb))
         sorted_indices = np.argsort(similarities)[::-1]
-
         return [(nodes[i], float(similarities[i])) for i in sorted_indices]
 
     def classify_level(

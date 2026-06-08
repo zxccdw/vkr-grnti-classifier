@@ -15,6 +15,7 @@ class OpenAIEmbedder:
         model: str,
         normalize: bool = True,
         timeout: float = 30.0,
+        verify_ssl: bool = True,
     ) -> None:
         self.model_name = f"openai:{model}"
         self.model = model
@@ -23,6 +24,7 @@ class OpenAIEmbedder:
             base_url=base_url.rstrip("/"),
             timeout=timeout,
             headers={"Authorization": f"Bearer {token}"},
+            verify=verify_ssl,
         )
         self._dim: int | None = None
 
@@ -45,7 +47,11 @@ class OpenAIEmbedder:
                 json={"input": chunk, "model": self.model},
             )
             resp.raise_for_status()
-            data = resp.json()["data"]
+            body = resp.json()
+            # Eliza wraps the OpenAI response under a "response" key
+            if "response" in body and "data" in body["response"]:
+                body = body["response"]
+            data = body["data"]
             vecs = np.array([item["embedding"] for item in data], dtype=np.float32)
             all_vecs.append(vecs)
 

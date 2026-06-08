@@ -1,4 +1,4 @@
-.PHONY: help install lint format typecheck test docker-build docker-run clean
+.PHONY: help install lint format typecheck test docker-build docker-run clean precompute-embeddings
 
 help:
 	@echo "Available commands:"
@@ -45,6 +45,12 @@ docker-logs:
 
 docker-stop:
 	docker-compose down
+
+precompute-embeddings:
+	uv run python -m backend.scripts.precompute_embeddings
+
+precompute-embeddings-all:
+	uv run python -m backend.scripts.precompute_embeddings --all
 
 clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} +

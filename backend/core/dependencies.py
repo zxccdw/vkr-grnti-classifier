@@ -50,6 +50,7 @@ def get_embedder():
             model=settings.openai_embeddings_model,
             normalize=settings.embeddings_normalize,
             timeout=settings.embeddings_timeout,
+            verify_ssl=settings.openai_embeddings_verify_ssl,
         )
     return TextEmbedder(
         endpoint=settings.embeddings_url,
@@ -58,6 +59,7 @@ def get_embedder():
     )
 
 
+@lru_cache
 def get_classifier() -> CascadeClassifier:
     return CascadeClassifier(
         embedder=get_embedder(),

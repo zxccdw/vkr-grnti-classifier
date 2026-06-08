@@ -105,3 +105,61 @@ def test_cache_keyed_by_parent_child_pair() -> None:
     cache_keys = set(classifier._anchor_cache.keys())
     assert (L2, LEAF_A) in cache_keys
     assert (L2, LEAF_B) in cache_keys
+
+
+def test_save_cache_and_load_cache_roundtrip(tmp_path) -> None:
+    onto = Ontology.from_payload(
+        _payload_with_two_leaves(leaf_a_edge_desc=["описание A"], leaf_b_edge_desc=["описание B"])
+    )
+    embedder = StubEmbedder({"any": [0.5, 0.5, 0.0, 0.0]})
+    clf = CascadeClassifier(embedder=embedder, ontology=onto)
+    clf.classify_level("any", parent_node_id=L2, top_k=2)
+
+    path = tmp_path / "cache.pkl.gz"
+    n_saved = clf.save_cache(path)
+    assert n_saved == 2
+    assert path.exists()
+
+    clf2 = CascadeClassifier(embedder=embedder, ontology=onto)
+    n_loaded = clf2.load_cache(path)
+    assert n_loaded == 2
+    assert set(clf2._anchor_cache.keys()) == {(L2, LEAF_A), (L2, LEAF_B)}
+
+
+def test_load_cache_restores_vectors_correctly(tmp_path) -> None:
+    onto = Ontology.from_payload(
+        _payload_with_two_leaves(leaf_a_edge_desc=["квантовая физика"], leaf_b_edge_desc=[])
+    )
+    embedder = StubEmbedder({"квантовая": [0.0, 1.0, 0.0, 0.0]})
+    clf = CascadeClassifier(embedder=embedder, ontology=onto)
+    clf.classify_level("квантовая физика", parent_node_id=L2, top_k=2)
+
+    path = tmp_path / "cache.pkl.gz"
+    clf.save_cache(path)
+
+    clf2 = CascadeClassifier(embedder=embedder, ontology=onto)
+    clf2.load_cache(path)
+
+    original = clf._anchor_cache[(L2, LEAF_A)]
+    restored = clf2._anchor_cache[(L2, LEAF_A)]
+    # float16 round-trip: tolerance ~1e-3
+    assert np.allclose(original, restored, atol=1e-2)
+
+
+def test_load_cache_does_not_overwrite_existing_entries(tmp_path) -> None:
+    onto = Ontology.from_payload(
+        _payload_with_two_leaves(leaf_a_edge_desc=["a"], leaf_b_edge_desc=["b"])
+    )
+    embedder = StubEmbedder({"text": [1.0, 0.0, 0.0, 0.0]})
+    clf = CascadeClassifier(embedder=embedder, ontology=onto)
+    clf.classify_level("text", parent_node_id=L2, top_k=2)
+    path = tmp_path / "cache.pkl.gz"
+    clf.save_cache(path)
+
+    fresh_vec = np.array([9.0, 9.0, 9.0, 9.0], dtype=np.float32)
+    clf2 = CascadeClassifier(embedder=embedder, ontology=onto)
+    clf2._anchor_cache[(L2, LEAF_A)] = fresh_vec.reshape(1, -1)
+    clf2.load_cache(path)
+
+    # pre-existing entry must not be overwritten
+    assert np.allclose(clf2._anchor_cache[(L2, LEAF_A)], fresh_vec.reshape(1, -1))

@@ -7,7 +7,10 @@ from fastapi.staticfiles import StaticFiles
 
 from backend.api import classify, health, nodes
 from backend.core.config import get_settings
-from backend.core.dependencies import get_embedder, get_llm_providers, get_ontology
+from backend.core.dependencies import get_classifier, get_embedder, get_llm_providers, get_ontology
+from backend.infrastructure.s3_store import S3Store
+
+_EMBEDDINGS_TMP = "/tmp/embeddings_cache.pkl.gz"
 
 
 @asynccontextmanager
@@ -23,6 +26,30 @@ async def lifespan(app: FastAPI):
     providers = get_llm_providers()
     names = [p.name for p in providers] or ["none"]
     print(f"llm providers: {', '.join(names)}")
+
+    settings = get_settings()
+    if settings.s3_bucket and settings.s3_access_key_id and settings.s3_secret_access_key:
+        print("loading classifier cache from S3...")
+        try:
+            s3 = S3Store(
+                bucket=settings.s3_bucket,
+                key=settings.s3_embeddings_key,
+                endpoint_url=settings.s3_endpoint_url,
+                access_key_id=settings.s3_access_key_id,
+                secret_access_key=settings.s3_secret_access_key,
+            )
+            from pathlib import Path
+
+            ok = s3.download_to(Path(_EMBEDDINGS_TMP))
+            if ok:
+                n = get_classifier().load_cache(Path(_EMBEDDINGS_TMP))
+                print(f"classifier cache loaded: {n} entries")
+            else:
+                print("embeddings cache not found in S3, will compute on first request")
+        except Exception as e:
+            print(f"classifier cache load failed: {e}")
+    else:
+        print("S3 not configured, classifier cache skipped")
 
     yield
 

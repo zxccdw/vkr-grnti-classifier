@@ -4,7 +4,7 @@ import asyncio
 import logging
 from dataclasses import dataclass
 
-from backend.application.attach_edge import PREDICATE_CONTAINS, AttachEdge, AttachEdgeCommand
+from backend.application.attach_edge import PREDICATE_CONTAINS, AttachEdge
 from backend.application.create_node import CreateNode, CreateNodeCommand, make_node_id
 from backend.domain.entities import Edge, Node, NodeId
 from backend.domain.ports import LLMProvider, OntologyRepository

@@ -9,6 +9,7 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
+        extra="ignore",
     )
 
     api_v1_prefix: str = "/api/v1"
@@ -27,6 +28,7 @@ class Settings(BaseSettings):
     openai_embeddings_base_url: str = ""
     openai_embeddings_token: str = ""
     openai_embeddings_model: str = "openai/text-embedding-3-small"
+    openai_embeddings_verify_ssl: bool = True
 
     default_top_k: int = 5
     beam_width: int = 5
@@ -38,6 +40,7 @@ class Settings(BaseSettings):
 
     s3_bucket: str = ""
     s3_key: str = "ontology_grnti.json"
+    s3_embeddings_key: str = "embeddings_cache.pkl.gz"
     s3_endpoint_url: str = "https://storage.yandexcloud.net"
     s3_access_key_id: str = ""
     s3_secret_access_key: str = ""
