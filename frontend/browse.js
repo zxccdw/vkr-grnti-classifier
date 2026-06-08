@@ -29,6 +29,8 @@ const els = {
     modalAddParent: document.getElementById("modal-add-parent"),
     newLabel: document.getElementById("new-label"),
     newCode: document.getElementById("new-code"),
+    modalAddSimilar: document.getElementById("modal-add-similar"),
+    modalAddSimilarList: document.getElementById("modal-add-similar-list"),
     modalAddError: document.getElementById("modal-add-error"),
     modalAddLoader: document.getElementById("modal-add-loader"),
     modalAddSubmit: document.getElementById("modal-add-submit"),
@@ -85,8 +87,10 @@ async function init() {
     els.backfillBtn.addEventListener("click", runBackfill);
     els.mergeBtn.addEventListener("click", runMerge);
     els.importInput.addEventListener("change", uploadOntology);
+    document.getElementById("pending-btn").addEventListener("click", togglePendingPopup);
     els.modalAddCancel.addEventListener("click", () => (els.modalAdd.hidden = true));
     els.modalAddSubmit.addEventListener("click", submitAddNode);
+    hookSimilarSearch();
     els.modalAttachCancel.addEventListener("click", () => (els.modalAttach.hidden = true));
     els.modalAttachSubmit.addEventListener("click", submitAttachEdge);
 
@@ -237,7 +241,8 @@ async function openScope() {
 }
 
 function updateBackfillBtn(sg) {
-    const pending = sg.edges.filter((e) => e.descriptions.length === 0).length;
+    const leafIds = new Set(sg.nodes.filter((n) => n.kind === "LEAF").map((n) => n.id));
+    const pending = sg.edges.filter((e) => leafIds.has(e.target) && e.descriptions.length === 0).length;
     els.backfillBtn.textContent = pending > 0
         ? `Догнать описания (${pending})`
         : "Догнать описания";
@@ -282,6 +287,31 @@ async function runMerge() {
         setStatus(`Ошибка merge: ${e.message}`, true);
     } finally {
         els.mergeBtn.disabled = false;
+    }
+}
+
+async function togglePendingPopup() {
+    const popup = document.getElementById("pending-popup");
+    const list = document.getElementById("pending-list");
+    if (!popup.hidden) { popup.hidden = true; return; }
+    list.innerHTML = '<span style="color:#94a3b8">Загружаю…</span>';
+    popup.hidden = false;
+    try {
+        const resp = await fetch("/api/v1/pending");
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const nodes = await resp.json();
+        if (!nodes.length) {
+            list.innerHTML = '<span style="color:#22c55e">Все описания заполнены ✓</span>';
+            return;
+        }
+        list.innerHTML = nodes.map((n) => `
+            <div style="padding:4px 0; border-bottom:1px solid #f1f5f9; display:flex; gap:8px; align-items:baseline">
+                <code style="color:#3b82f6; white-space:nowrap">${escapeHtml(n.code || "—")}</code>
+                <span style="color:#374151">${escapeHtml(n.label)}</span>
+            </div>
+        `).join("");
+    } catch (e) {
+        list.innerHTML = `<span style="color:#ef4444">${escapeHtml(e.message)}</span>`;
     }
 }
 
@@ -441,7 +471,73 @@ function renderDetails(node, parentEdges) {
             <dt>Уровень</dt><dd>${node.kind}</dd>
         </dl>
         ${parentBlock}
+        <button class="btn-danger" id="delete-node-btn" style="margin-top:12px">Удалить узел</button>
     `;
+    document.getElementById("delete-node-btn").addEventListener("click", () => deleteNode(node));
+}
+
+function debounce(fn, ms) {
+    let t;
+    return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+}
+
+let _similarSearchTimer = null;
+function applySimilarCode(similarCode) {
+    const parent = state.nodesById.get(state.selectedNodeId);
+    if (!parent || !parent.code || !similarCode) return;
+    const parts = similarCode.split(".");
+    const suffix = parts[parts.length - 1];
+    if (!suffix) return;
+    els.newCode.value = parent.code + "." + suffix;
+}
+
+function hookSimilarSearch() {
+    els.newLabel.addEventListener("input", debounce(async () => {
+        const q = els.newLabel.value.trim();
+        if (q.length < 2) {
+            els.modalAddSimilar.hidden = true;
+            return;
+        }
+        try {
+            const resp = await fetch(`/api/v1/search?q=${encodeURIComponent(q)}&limit=5`);
+            if (!resp.ok) return;
+            const nodes = await resp.json();
+            if (!nodes.length) { els.modalAddSimilar.hidden = true; return; }
+            els.modalAddSimilarList.innerHTML = "";
+            for (const n of nodes) {
+                const item = document.createElement("div");
+                item.className = "similar-node-item";
+                item.style.cursor = "pointer";
+                item.innerHTML = `
+                    <code class="similar-node-code">${escapeHtml(n.code || "—")}</code>
+                    <span class="similar-node-label">${escapeHtml(n.label)}</span>
+                `;
+                item.addEventListener("click", () => {
+                    applySimilarCode(n.code);
+                    els.modalAddError.hidden = true;
+                });
+                els.modalAddSimilarList.appendChild(item);
+            }
+            els.modalAddSimilar.hidden = false;
+        } catch { /* ignore */ }
+    }, 280));
+}
+
+function nextChildCode(parentCode) {
+    if (!parentCode) return "";
+    const prefix = parentCode + ".";
+    const suffixes = [];
+    for (const [, node] of state.nodesById) {
+        if (node.code && node.code.startsWith(prefix)) {
+            const rest = node.code.slice(prefix.length);
+            if (!rest.includes(".")) {
+                const n = parseInt(rest, 10);
+                if (!isNaN(n)) suffixes.push(n);
+            }
+        }
+    }
+    const next = suffixes.length ? Math.max(...suffixes) + 1 : 1;
+    return prefix + String(next).padStart(2, "0");
 }
 
 function openAddModal() {
@@ -452,7 +548,9 @@ function openAddModal() {
     }
     els.modalAddParent.textContent = `Родитель: ${parent.code || "—"} · ${parent.label}`;
     els.newLabel.value = "";
-    els.newCode.value = parent.code ? `${parent.code}.` : "";
+    els.newCode.value = nextChildCode(parent.code);
+    els.modalAddSimilar.hidden = true;
+    els.modalAddSimilarList.innerHTML = "";
     els.modalAddError.hidden = true;
     els.modalAddLoader.hidden = true;
     els.modalAddSubmit.disabled = false;
@@ -467,6 +565,27 @@ async function submitAddNode() {
         showError(els.modalAddError, "Заполните оба поля");
         return;
     }
+
+    const parent = state.nodesById.get(state.selectedNodeId);
+    if (parent && parent.code) {
+        const requiredPrefix = parent.code + ".";
+        if (!code.startsWith(requiredPrefix)) {
+            showError(els.modalAddError, `Код должен начинаться с «${requiredPrefix}»`);
+            return;
+        }
+        const suffix = code.slice(requiredPrefix.length);
+        if (!suffix || suffix.includes(".")) {
+            showError(els.modalAddError, `После «${requiredPrefix}» должен быть один числовой сегмент (например, ${requiredPrefix}03)`);
+            return;
+        }
+    }
+
+    const duplicate = [...state.nodesById.values()].find((n) => n.code === code);
+    if (duplicate) {
+        showError(els.modalAddError, `Код «${code}» уже занят: «${duplicate.label}»`);
+        return;
+    }
+
     els.modalAddSubmit.disabled = true;
     els.modalAddLoader.hidden = false;
     els.modalAddError.hidden = true;
@@ -481,12 +600,31 @@ async function submitAddNode() {
             throw new Error(detail);
         }
         els.modalAdd.hidden = true;
-        toast("Узел создан и описание сгенерировано", "success");
+        toast("Узел создан. Нажми «Догнать описания» чтобы сгенерировать описание через LLM.", "success");
         await openScope();
     } catch (e) {
         showError(els.modalAddError, e.message);
         els.modalAddSubmit.disabled = false;
         els.modalAddLoader.hidden = true;
+    }
+}
+
+async function deleteNode(node) {
+    if (!confirm(`Удалить узел «${node.code} · ${node.label}»?\nВсе рёбра к нему тоже удалятся.`)) return;
+    try {
+        const resp = await fetch(`/api/v1/nodes?node_id=${encodeURIComponent(node.id)}`, { method: "DELETE" });
+        if (!resp.ok) {
+            const detail = (await resp.json().catch(() => ({}))).detail || `HTTP ${resp.status}`;
+            throw new Error(detail);
+        }
+        toast(`Узел «${node.code}» удалён`, "success");
+        els.details.innerHTML = '<p class="muted">Кликни по узлу графа.</p>';
+        state.selectedNodeId = null;
+        if (state.selectedL2 === node.id) state.selectedL2 = null;
+        else if (state.selectedL1 === node.id) { state.selectedL1 = null; state.selectedL2 = null; }
+        await openScope();
+    } catch (e) {
+        setStatus(`Ошибка удаления: ${e.message}`, true);
     }
 }
 

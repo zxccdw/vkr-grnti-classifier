@@ -12,6 +12,7 @@ _URI_PREFIX = "http://example.org/competencies#GRNTI_"
 class CreateNodeCommand:
     label: str
     code: str
+    full_label: str = ""
 
 
 class CreateNode:
@@ -23,7 +24,7 @@ class CreateNode:
             id=make_node_id(cmd.code),
             label=cmd.label,
             code=cmd.code,
-            full_label=cmd.label,
+            full_label=cmd.full_label or cmd.label,
             kind=kind_by_code(cmd.code),
         )
         self._ontology.add_node(node)

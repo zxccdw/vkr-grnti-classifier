@@ -30,6 +30,7 @@ L1_ID = "http://example.org/competencies#GRNTI_34"
 L2_ID = "http://example.org/competencies#GRNTI_34_15"
 L2_OTHER_ID = "http://example.org/competencies#GRNTI_34_16"
 L3_ID = "http://example.org/competencies#GRNTI_34_15_23"
+L3_PENDING_ID = "http://example.org/competencies#GRNTI_34_15_24"
 
 
 def _seed_ontology(path: Path) -> None:
@@ -57,6 +58,12 @@ def _seed_ontology(path: Path) -> None:
                         "code": "34.15.23",
                         "full_label": "Биология → Генетика → Геномика",
                     },
+                    {
+                        "id": L3_PENDING_ID,
+                        "label": "Протеомика",
+                        "code": "34.15.24",
+                        "full_label": "Биология → Генетика → Протеомика",
+                    },
                 ],
                 "links": [
                     {"source": ROOT_ID, "target": L1_ID, "predicate": PREDICATE_CONTAINS},
@@ -67,6 +74,11 @@ def _seed_ontology(path: Path) -> None:
                         "target": L3_ID,
                         "predicate": PREDICATE_CONTAINS,
                         "llm_descriptions": [{"text": "stored", "source": "gigachat"}],
+                    },
+                    {
+                        "source": L2_ID,
+                        "target": L3_PENDING_ID,
+                        "predicate": PREDICATE_CONTAINS,
                     },
                 ],
             },
@@ -146,7 +158,8 @@ def test_create_node_with_edge_returns_node_and_edge(client_ok: TestClient) -> N
     data = response.json()
     assert data["node"]["label"] == "Протеомика"
     assert data["edge"]["source"] == L2_ID
-    assert {d["source"] for d in data["edge"]["descriptions"]} == {"gigachat", "yagpt"}
+    # LLM runs in background — edge returned immediately with no descriptions
+    assert data["edge"]["descriptions"] == []
 
 
 def test_attach_orphan_with_matching_prefix_succeeds(client_ok: TestClient) -> None:

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Обозреватель онтологии ГРНТИ</title>
     <link rel="stylesheet" href="/static/styles.css">
-    <link rel="stylesheet" href="/static/browse.css?v=11">
+    <link rel="stylesheet" href="/static/browse.css?v=12">
 </head>
 <body class="browse-body">
     <header class="browse-header">
@@ -16,9 +16,20 @@
             <a class="btn-secondary header-btn" href="/api/v1/export/ontology.json" download>Скачать JSON</a>
             <button id="merge-btn" class="btn-secondary">Объединить дубликаты</button>
             <button id="backfill-btn" class="btn-secondary" disabled>Догнать описания</button>
+            <button id="pending-btn" class="btn-secondary">Pending ▾</button>
             <a href="/">← Классификатор</a>
         </div>
     </header>
+
+    <div id="pending-popup" hidden style="
+        position:fixed; top:56px; right:16px; width:360px; max-height:400px;
+        overflow-y:auto; background:#fff; border:1px solid #e2e8f0;
+        border-radius:10px; box-shadow:0 4px 24px rgba(0,0,0,.12);
+        padding:12px; z-index:1000; font-size:0.8rem;
+    ">
+        <div style="font-weight:600; margin-bottom:8px; color:#64748b;">УЗЛЫ БЕЗ ОПИСАНИЯ</div>
+        <div id="pending-list"></div>
+    </div>
 
     <main class="browse-layout">
         <aside class="panel panel-left">
@@ -64,12 +75,16 @@
             <p id="modal-add-parent" class="muted"></p>
             <label for="new-label">Название</label>
             <input id="new-label" type="text" maxlength="300" placeholder="Например, Протеомика">
+            <div id="modal-add-similar" class="similar-nodes" hidden>
+                <p class="similar-nodes-title">Похожие в онтологии:</p>
+                <div id="modal-add-similar-list"></div>
+            </div>
             <label for="new-code">Код ГРНТИ</label>
             <input id="new-code" type="text" maxlength="50" placeholder="34.15.99">
             <div id="modal-add-error" class="error-msg" hidden></div>
             <div class="modal-actions">
                 <button id="modal-add-cancel" class="btn-secondary">Отмена</button>
-                <button id="modal-add-submit" class="btn-primary">Создать + сгенерировать</button>
+                <button id="modal-add-submit" class="btn-primary">Создать</button>
             </div>
             <div id="modal-add-loader" class="muted" hidden>LLM думают…</div>
         </div>
@@ -97,6 +112,6 @@
     <div id="toasts" class="toasts" aria-live="polite"></div>
 
     <script src="https://d3js.org/d3.v7.min.js"></script>
-    <script src="/static/browse.js?v=11"></script>
+    <script src="/static/browse.js?v=13"></script>
 </body>
 </html>

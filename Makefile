@@ -17,16 +17,16 @@ install:
 	uv pip install --system ruff mypy black
 
 lint:
-	ruff check backend/
+	uv run ruff check backend/
 
 format:
-	ruff format backend/
+	uv run ruff format backend/
 
 format-check:
-	ruff format --check backend/
+	uv run ruff format --check backend/
 
 typecheck:
-	mypy backend/ --ignore-missing-imports
+	uv run mypy backend/ --ignore-missing-imports
 
 test:
 	@echo "Tests not implemented yet"

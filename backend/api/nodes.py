@@ -100,6 +100,17 @@ async def attach_edge(
     return _edge_to_dto(edge)
 
 
+@router.delete("/nodes", status_code=204)
+def delete_node(
+    node_id: Annotated[str, Query(..., min_length=1)],
+    repo: Annotated[JsonOntologyRepository, Depends(get_ontology_repository)],
+) -> None:
+    try:
+        repo.remove_node(NodeId(node_id))
+    except NodeNotFound as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+
+
 @router.delete("/edges", status_code=204)
 def delete_edge(
     repo: Annotated[JsonOntologyRepository, Depends(get_ontology_repository)],
@@ -144,11 +155,30 @@ async def import_ontology(
     }
 
 
+@router.get("/pending", response_model=list[NodeOut])
+def list_pending(
+    repo: Annotated[JsonOntologyRepository, Depends(get_ontology_repository)],
+) -> list[NodeOut]:
+    edges = repo.pending_edges()
+    seen: set[str] = set()
+    nodes: list[NodeOut] = []
+    for edge in edges:
+        if edge.target.value in seen:
+            continue
+        seen.add(edge.target.value)
+        try:
+            nodes.append(_node_to_dto(repo.get_node(edge.target)))
+        except Exception:
+            pass
+    return nodes
+
+
 @router.post("/backfill", response_model=BackfillResponse)
 async def backfill_descriptions(
     use_case: Annotated[BackfillDescriptions, Depends(get_backfill_use_case)],
+    batch: Annotated[int, Query(ge=1, le=1000)] = 5,
 ) -> BackfillResponse:
-    report = await use_case.execute()
+    report = await use_case.execute(batch=batch)
     return BackfillResponse(filled=report.filled, still_pending=report.still_pending)
 
 

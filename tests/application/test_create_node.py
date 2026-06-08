@@ -68,6 +68,20 @@ class FakeOntology:
         self.commits += 1
 
 
+def test_full_label_defaults_to_label_when_not_provided() -> None:
+    onto = FakeOntology()
+    node = CreateNode(onto).execute(CreateNodeCommand(label="Геномика", code="34.15.99"))
+    assert node.full_label == "Геномика"
+
+
+def test_full_label_uses_provided_value() -> None:
+    onto = FakeOntology()
+    node = CreateNode(onto).execute(
+        CreateNodeCommand(label="Геномика", code="34.15.99", full_label="Биология → Генетика → Геномика")
+    )
+    assert node.full_label == "Биология → Генетика → Геномика"
+
+
 def test_creates_orphan_node_with_kind_from_code() -> None:
     onto = FakeOntology()
     use_case = CreateNode(onto)

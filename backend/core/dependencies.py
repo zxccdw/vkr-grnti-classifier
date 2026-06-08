@@ -7,8 +7,11 @@ from backend.application.create_node import CreateNode
 from backend.application.merge_duplicates import MergeDuplicatesByLabel
 from backend.core.config import get_settings
 from backend.infrastructure.json_ontology import JsonOntologyRepository
+from backend.infrastructure.llm.gigachat_provider import GigaChatProvider
 from backend.infrastructure.llm.mock_provider import MockProvider
 from backend.infrastructure.llm.openai_compatible import OpenAICompatibleProvider
+from backend.infrastructure.openai_embedder import OpenAIEmbedder
+from backend.infrastructure.s3_store import S3Store
 from backend.services.cascade import CascadeClassifier
 from backend.services.embedder import TextEmbedder
 from backend.services.ontology import Ontology
@@ -17,9 +20,19 @@ from backend.services.ontology import Ontology
 @lru_cache
 def get_ontology_repository() -> JsonOntologyRepository:
     settings = get_settings()
+    s3_store = None
+    if settings.s3_bucket and settings.s3_access_key_id and settings.s3_secret_access_key:
+        s3_store = S3Store(
+            bucket=settings.s3_bucket,
+            key=settings.s3_key,
+            endpoint_url=settings.s3_endpoint_url,
+            access_key_id=settings.s3_access_key_id,
+            secret_access_key=settings.s3_secret_access_key,
+        )
     return JsonOntologyRepository(
         path=settings.ontology_path,
         snapshots_dir=settings.ontology_snapshots_dir,
+        s3_store=s3_store,
     )
 
 
@@ -28,8 +41,16 @@ def get_ontology() -> Ontology:
 
 
 @lru_cache
-def get_embedder() -> TextEmbedder:
+def get_embedder():
     settings = get_settings()
+    if settings.openai_embeddings_base_url and settings.openai_embeddings_token:
+        return OpenAIEmbedder(
+            base_url=settings.openai_embeddings_base_url,
+            token=settings.openai_embeddings_token,
+            model=settings.openai_embeddings_model,
+            normalize=settings.embeddings_normalize,
+            timeout=settings.embeddings_timeout,
+        )
     return TextEmbedder(
         endpoint=settings.embeddings_url,
         normalize=settings.embeddings_normalize,
@@ -48,7 +69,18 @@ def get_classifier() -> CascadeClassifier:
 def get_llm_providers() -> list:
     settings = get_settings()
     providers: list = []
-    if settings.gigachat_base_url and settings.gigachat_token:
+    if settings.gigachat_credentials:
+        providers.append(
+            GigaChatProvider(
+                credentials=settings.gigachat_credentials,
+                model=settings.gigachat_model,
+                temperature=settings.llm_temperature,
+                max_tokens=settings.llm_max_tokens,
+                timeout=settings.llm_timeout,
+                verify_ssl=settings.gigachat_verify_ssl,
+            )
+        )
+    elif settings.gigachat_base_url and settings.gigachat_token:
         providers.append(
             OpenAICompatibleProvider(
                 name="gigachat",

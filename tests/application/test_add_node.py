@@ -119,7 +119,7 @@ class FailingProvider:
         raise RuntimeError("down")
 
 
-async def test_creates_node_and_edge_with_descriptions() -> None:
+async def test_creates_node_and_edge_immediately() -> None:
     onto = FakeOntology()
     use_case = AddNode(onto, [FakeProvider("gigachat", ["g"]), FakeProvider("yagpt", ["y"])])
 
@@ -131,9 +131,23 @@ async def test_creates_node_and_edge_with_descriptions() -> None:
     assert result.node.kind is NodeKind.LEAF
     assert result.edge.source == L2
     assert result.edge.target == NEW_LEAF
-    assert {d.source for d in result.edge.descriptions} == {"gigachat", "yagpt"}
+    # descriptions are generated in background — edge is returned empty immediately
+    assert result.edge.descriptions == ()
     assert len(onto.added_nodes) == 1
     assert len(onto.added_edges) == 1
+
+
+async def test_full_label_built_from_parent_chain() -> None:
+    onto = FakeOntology()
+    use_case = AddNode(onto, [])
+
+    result = await use_case.execute(
+        AddNodeCommand(parent_id=L2, label="Протеомика", code="34.15.99")
+    )
+
+    # chain under L2: ROOT → L1(Биология) → L2(Генетика) → Протеомика
+    assert "Протеомика" in result.node.full_label
+    assert "Генетика" in result.node.full_label
 
 
 async def test_parent_is_leaf_is_allowed() -> None:

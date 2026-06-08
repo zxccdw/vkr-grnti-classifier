@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass
 
 from backend.domain.entities import Description, Edge, Node, NodeId
 from backend.domain.errors import InvalidDepth
 from backend.domain.ports import LLMProvider, OntologyRepository
+
+logger = logging.getLogger(__name__)
 
 PREDICATE_CONTAINS = "http://example.org/competencies#содержит"
 
@@ -56,6 +59,7 @@ class AttachEdge:
         out: list[Description] = []
         for provider, result in zip(self._providers, results, strict=True):
             if not isinstance(result, list):
+                logger.warning("provider %s failed: %r", provider.name, result)
                 continue
             for fragment in result:
                 text = fragment.strip()

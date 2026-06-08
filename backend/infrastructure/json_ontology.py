@@ -28,9 +28,12 @@ EdgeKey = tuple[str, str, str]
 
 
 class JsonOntologyRepository:
-    def __init__(self, path: Path, snapshots_dir: Path) -> None:
+    def __init__(self, path: Path, snapshots_dir: Path, s3_store=None) -> None:
         self._path = path
         self._snapshots_dir = snapshots_dir
+        self._s3 = s3_store
+        if self._s3:
+            self._s3.download_to(path)
         self._raw: dict = json.loads(path.read_text(encoding="utf-8"))
         self._nodes_by_id: dict[str, dict] = {n["id"]: n for n in self._raw["nodes"]}
         self._edges_by_key: dict[EdgeKey, dict] = {}
@@ -188,12 +191,14 @@ class JsonOntologyRepository:
     def remove_node(self, id: NodeId) -> None:
         if id.value not in self._nodes_by_id:
             raise NodeNotFound(id.value)
+        self._snapshot()
         self._raw["nodes"] = [n for n in self._raw["nodes"] if n["id"] != id.value]
         self._raw["links"] = [
             link
             for link in self._raw["links"]
             if link["source"] != id.value and link["target"] != id.value
         ]
+        self._atomic_write()
         self._nodes_by_id.pop(id.value, None)
         self._edges_by_key = {
             k: v for k, v in self._edges_by_key.items() if k[0] != id.value and k[1] != id.value
@@ -204,6 +209,7 @@ class JsonOntologyRepository:
             lst[:] = [s for s in lst if s != id.value]
         for lst in self._outgoing.values():
             lst[:] = [t for t in lst if t != id.value]
+        self._ontology = Ontology.from_payload(self._raw)
 
     def export_path(self) -> Path:
         return self._path
@@ -297,6 +303,10 @@ class JsonOntologyRepository:
         for key, raw_link in self._edges_by_key.items():
             if key in self._pending_edge_updates:
                 continue
+            # only generate descriptions for leaf nodes
+            target_raw = self._nodes_by_id.get(key[1], {})
+            if _kind_by_code(target_raw.get("code")) != NodeKind.LEAF:
+                continue
             descriptions = _read_descriptions(raw_link, self._nodes_by_id)
             if descriptions:
                 continue
@@ -382,6 +392,8 @@ class JsonOntologyRepository:
             encoding="utf-8",
         )
         os.replace(tmp, self._path)
+        if self._s3:
+            self._s3.upload_from(self._path)
 
 
 def _node_from_raw(raw: dict) -> Node:

@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     embeddings_normalize: bool = True
     embeddings_timeout: float = 30.0
 
+    openai_embeddings_base_url: str = ""
+    openai_embeddings_token: str = ""
+    openai_embeddings_model: str = "openai/text-embedding-3-small"
+
     default_top_k: int = 5
     beam_width: int = 5
 
@@ -32,8 +36,15 @@ class Settings(BaseSettings):
     llm_timeout: float = 60.0
     mock_llm: bool = False
 
+    s3_bucket: str = ""
+    s3_key: str = "ontology_grnti.json"
+    s3_endpoint_url: str = "https://storage.yandexcloud.net"
+    s3_access_key_id: str = ""
+    s3_secret_access_key: str = ""
+
     gigachat_base_url: str = ""
     gigachat_token: str = ""
+    gigachat_credentials: str = ""
     gigachat_model: str = "GigaChat-Pro"
     gigachat_verify_ssl: bool = True
 

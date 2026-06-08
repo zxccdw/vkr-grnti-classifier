@@ -181,14 +181,39 @@ def test_update_edge_descriptions_persists(repo: JsonOntologyRepository, tmp_pat
     assert target_link["llm_descriptions"] == [{"text": "updated", "source": "yagpt"}]
 
 
-def test_pending_edges_finds_only_edges_without_descriptions(
+def test_pending_edges_only_returns_leaf_targets(
     repo: JsonOntologyRepository,
 ) -> None:
     pending = repo.pending_edges()
     pending_pairs = {(e.source.value, e.target.value) for e in pending}
+    # L3 (leaf) already has descriptions — not pending
     assert (L2_ID, L3_ID) not in pending_pairs
-    assert (ROOT_ID, L1_ID) in pending_pairs
-    assert (L1_ID, L2_ID) in pending_pairs
+    # L1 (SECTION) and L2 (SUBSECTION) are non-leaf — filtered out even without descriptions
+    assert (ROOT_ID, L1_ID) not in pending_pairs
+    assert (L1_ID, L2_ID) not in pending_pairs
+
+
+def test_pending_edges_includes_leaf_without_descriptions(tmp_path: Path) -> None:
+    payload = {
+        "nodes": [
+            {"id": ROOT_ID, "label": "ГРНТИ", "code": None},
+            {"id": L1_ID, "label": "Биология", "code": "34"},
+            {"id": L2_ID, "label": "Генетика", "code": "34.15"},
+            {"id": L3_ID, "label": "Геномика", "code": "34.15.23"},
+        ],
+        "links": [
+            {"source": ROOT_ID, "target": L1_ID, "predicate": PREDICATE_CONTAINS},
+            {"source": L1_ID, "target": L2_ID, "predicate": PREDICATE_CONTAINS},
+            {"source": L2_ID, "target": L3_ID, "predicate": PREDICATE_CONTAINS},
+        ],
+    }
+    onto_path = tmp_path / "o.json"
+    onto_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    r = JsonOntologyRepository(onto_path, tmp_path / "snaps")
+    pending = r.pending_edges()
+    pairs = {(e.source.value, e.target.value) for e in pending}
+    # only the leaf edge is pending
+    assert pairs == {(L2_ID, L3_ID)}
 
 
 def test_pending_edges_excludes_legacy_node_descriptions(tmp_path: Path) -> None:

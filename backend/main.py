@@ -14,7 +14,7 @@ from backend.core.dependencies import get_embedder, get_llm_providers, get_ontol
 async def lifespan(app: FastAPI):
     print("loading embedder...")
     embedder = get_embedder()
-    print(f"embedder ready: {embedder.model_name} (dim={embedder.embedding_dim})")
+    print(f"embedder configured: {embedder.model_name}")
 
     print("loading ontology...")
     ontology = get_ontology()

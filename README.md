@@ -50,6 +50,54 @@ services:
       - ./my_prompt.txt:/app/backend/infrastructure/llm/prompts/v8_project.txt:ro
 ```
 
+## Деплой в Yandex Serverless Containers
+
+### Подготовка (один раз)
+
+Узнать ID ресурсов:
+```bash
+yc container registry list          # YC_REGISTRY_ID
+yc serverless container list        # YC_CONTAINER_ID
+yc iam service-account list         # YC_SA_ID
+```
+
+Добавить в `~/.zshrc`:
+```bash
+export YC_REGISTRY_ID=<id реестра>
+export YC_CONTAINER_ID=<id контейнера>
+export YC_SA_ID=<id сервисного аккаунта>
+export YC_CONTAINER_NAME=grnti-web
+```
+
+Заполнить в `.env` все токены (`YAGPT_TOKEN`, `GIGACHAT_CREDENTIALS`, `S3_*`).
+
+### Задеплоить
+
+```bash
+./deploy.sh
+```
+
+Соберёт образ под `linux/amd64`, запушит в реестр, создаст новую ревизию.
+
+### Открыть / закрыть доступ
+
+```bash
+# открыть (публичный URL без токена)
+yc serverless container allow-unauthenticated-invoke --name grnti-web
+
+# закрыть
+yc serverless container deny-unauthenticated-invoke --name grnti-web
+```
+
+### URL и логи
+
+```bash
+yc serverless container get grnti-web --format json | jq -r .url
+yc logging read --folder-id <folder-id> --follow
+```
+
+> Serverless не тарифицируется в простое — платишь только за запросы.
+
 ## Разработка
 
 ```bash
