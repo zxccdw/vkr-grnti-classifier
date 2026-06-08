@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 import numpy as np
 
 from backend.services.cascade import CascadeClassifier
-from backend.services.ontology import Ontology
+from backend.services.ontology import Node, Ontology
 
 PRED = "http://example.org/competencies#содержит"
 ROOT = "http://example.org/grnti_root"
@@ -163,3 +165,50 @@ def test_load_cache_does_not_overwrite_existing_entries(tmp_path) -> None:
 
     # pre-existing entry must not be overwritten
     assert np.allclose(clf2._anchor_cache[(L2, LEAF_A)], fresh_vec.reshape(1, -1))
+
+
+LEAF_C = "http://example.org/competencies#GRNTI_34_15_77"
+
+
+def test_new_leaf_added_after_cache_warmup_is_classified() -> None:
+    onto = Ontology.from_payload(
+        _payload_with_two_leaves(leaf_a_edge_desc=["биология"], leaf_b_edge_desc=["химия"])
+    )
+    embedder = StubEmbedder(
+        {
+            "биология": [1.0, 0.0, 0.0, 0.0],
+            "химия": [0.0, 1.0, 0.0, 0.0],
+            "физика": [0.0, 0.0, 1.0, 0.0],
+        }
+    )
+    clf = CascadeClassifier(embedder=embedder, ontology=onto)
+
+    # warm up cache for existing leaves
+    clf.classify_level("биология", parent_node_id=L2, top_k=2)
+    assert (L2, LEAF_A) in clf._anchor_cache
+    assert (L2, LEAF_B) in clf._anchor_cache
+
+    # add new leaf to ontology after cache is warm
+    new_node = Node(
+        id=LEAF_C,
+        code="34.15.77",
+        depth=3,
+        label="Физика",
+        full_label="Биология → Генетика → Физика",
+        description="",
+        parent_id=L2,
+        children_ids=(),
+        llm_descriptions=("физика элементарных частиц",),
+    )
+    onto.nodes_by_id[LEAF_C] = new_node
+    onto.nodes_by_id[L2] = replace(
+        onto.nodes_by_id[L2], children_ids=onto.nodes_by_id[L2].children_ids + (LEAF_C,)
+    )
+    onto.edge_descriptions[(L2, LEAF_C)] = ("физика элементарных частиц",)
+
+    # new leaf must be ranked and cache entry created for it
+    results = clf.classify_level("физика", parent_node_id=L2, top_k=3)
+    result_ids = [n.id for n, _ in results]
+    assert LEAF_C in result_ids
+    assert (L2, LEAF_C) in clf._anchor_cache
+    assert results[0][0].id == LEAF_C
