@@ -3,7 +3,7 @@ import secrets
 
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, RedirectResponse
 
 from backend.core.config import get_settings
 
@@ -26,7 +26,6 @@ class BasicAuthMiddleware(BaseHTTPMiddleware):
                 authorization = f"Basic {auth_cookie}"
 
         if not authorization or not authorization.startswith("Basic "):
-            from starlette.responses import RedirectResponse
             return RedirectResponse(url=f"/login?redirect={request.url.path}", status_code=303)
 
         try:
