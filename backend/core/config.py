@@ -55,6 +55,10 @@ class Settings(BaseSettings):
     yagpt_token: str = ""
     yagpt_model: str = "yandexgpt"
 
+    auth_username: str = "admin"
+    auth_password: str = ""
+    auth_realm: str = "GRNTI Web"
+
 
 @lru_cache
 def get_settings() -> Settings:

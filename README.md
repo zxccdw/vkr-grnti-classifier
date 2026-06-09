@@ -17,6 +17,7 @@ open http://localhost:8080/browse
 
 | Что | Зачем |
 |---|---|
+| `AUTH_USERNAME`, `AUTH_PASSWORD` | HTTP Basic Auth (логин/пароль). Если пароль пустой - защита отключена |
 | `GIGACHAT_BASE_URL`, `GIGACHAT_TOKEN` | OpenAI-совместимый прокси для GigaChat. Пусто = выключено |
 | `YAGPT_BASE_URL`, `YAGPT_TOKEN` | то же для YandexGPT |
 | `EMBEDDING_MODEL` | `BAAI/bge-m3` (production) или `intfloat/multilingual-e5-small` (быстрее, для теста) |
@@ -52,6 +53,19 @@ services:
 
 ## Деплой в Yandex Serverless Containers
 
+### Особенности serverless-версии
+
+- **Холодный старт:** контейнер "просыпается" при первом запросе после простоя, загрузка занимает 3-5 секунд
+- **Доступ:** контейнер можно скрыть (`deny-unauthenticated-invoke`) или открыть (`allow-unauthenticated-invoke`) в публичный доступ
+- **Авторизация:** простая HTTP Basic Auth (логин + пароль из `.env`)
+- **Лимит выполнения:** платформа убивает запрос через 300 секунд. Если генерация LLM-описаний для большого дерева не успела — используйте кнопку **«Догнать описания»** в UI
+- **Классификация:** используется OpenAI-совместимый embedder (модель из `.env`)
+- **Генерация описаний:**
+  - GigaChat — работает на личном ключе бесплатно (возможно, понадобится кафедральный аккаунт)
+  - YaGPT — через прокси `https://polza.ai/api/v1`
+- **Хранение:** дерево онтологии и предвычисленные эмбеддинги лежат в S3 (настройки `S3_*` в `.env`)
+- **Деплой:** через `./deploy.sh` — нужно один раз получить ID ресурсов (см. ниже). Скрипт читает `.env` и циклом перечисляет все переменные в `--environment` при создании ревизии, т.к. Yandex Serverless не поддерживает `.env` файлы
+
 ### Подготовка (один раз)
 
 Узнать ID ресурсов:
@@ -69,7 +83,7 @@ export YC_SA_ID=<id сервисного аккаунта>
 export YC_CONTAINER_NAME=grnti-web
 ```
 
-Заполнить в `.env` все токены (`YAGPT_TOKEN`, `GIGACHAT_CREDENTIALS`, `S3_*`).
+Заполнить в `.env` все токены (`AUTH_PASSWORD`, `YAGPT_TOKEN`, `GIGACHAT_CREDENTIALS`, `S3_*`).
 
 ### Задеплоить
 
@@ -79,10 +93,20 @@ export YC_CONTAINER_NAME=grnti-web
 
 Соберёт образ под `linux/amd64`, запушит в реестр, создаст новую ревизию.
 
+### Аутентификация
+
+Приложение защищено HTTP Basic Auth (stateless, работает в serverless).
+
+При первом заходе браузер покажет модальное окно с запросом логина/пароля. Используйте credentials из `.env`:
+- Логин: `admin` (или значение `AUTH_USERNAME`)
+- Пароль: значение `AUTH_PASSWORD`
+
+Чтобы отключить защиту, оставьте `AUTH_PASSWORD` пустым в `.env`.
+
 ### Открыть / закрыть доступ
 
 ```bash
-# открыть (публичный URL без токена)
+# открыть (публичный URL, но защищен паролем из AUTH_PASSWORD)
 yc serverless container allow-unauthenticated-invoke --name grnti-web
 
 # закрыть

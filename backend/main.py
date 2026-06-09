@@ -6,6 +6,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.api import classify, health, nodes
+from backend.core.auth import BasicAuthMiddleware
 from backend.core.config import get_settings
 from backend.core.dependencies import get_classifier, get_embedder, get_llm_providers, get_ontology
 from backend.infrastructure.s3_store import S3Store
@@ -65,6 +66,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    app.add_middleware(BasicAuthMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
@@ -87,6 +89,10 @@ def create_app() -> FastAPI:
         @app.get("/browse")
         def read_browse():
             return FileResponse("frontend/browse.html")
+
+        @app.get("/login")
+        def read_login():
+            return FileResponse("frontend/login.html")
     except Exception as e:
         print(f"could not mount frontend: {e}")
 
