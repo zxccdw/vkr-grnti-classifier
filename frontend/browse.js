@@ -14,7 +14,6 @@ const state = {
 const els = {
     l1: document.getElementById("l1-input"),
     l2: document.getElementById("l2-input"),
-    depth: document.getElementById("depth-input"),
     openBtn: document.getElementById("open-btn"),
     backfillBtn: document.getElementById("backfill-btn"),
     mergeBtn: document.getElementById("merge-btn"),
@@ -87,6 +86,7 @@ async function init() {
     els.backfillBtn.addEventListener("click", runBackfill);
     els.mergeBtn.addEventListener("click", runMerge);
     els.importInput.addEventListener("change", uploadOntology);
+document.getElementById("export-btn").addEventListener("click", downloadOntology);
     document.getElementById("pending-btn").addEventListener("click", togglePendingPopup);
     els.modalAddCancel.addEventListener("click", () => (els.modalAdd.hidden = true));
     els.modalAddSubmit.addEventListener("click", submitAddNode);
@@ -219,10 +219,7 @@ function createCombobox(name, { searchEndpoint = null, onSelect } = {}) {
 async function openScope() {
     const rootId = state.selectedL2 || state.selectedL1;
     if (!rootId) return;
-    const depthValue = parseInt(els.depth.value, 10);
-    const depth = Number.isFinite(depthValue) && depthValue >= 1
-        ? Math.min(depthValue, 10)
-        : (state.selectedL2 ? 3 : 4);
+    const depth = 10;
     state.currentRoot = rootId;
     state.selectedNodeId = null;
     els.addBtn.disabled = true;
@@ -313,6 +310,10 @@ async function togglePendingPopup() {
     } catch (e) {
         list.innerHTML = `<span style="color:#ef4444">${escapeHtml(e.message)}</span>`;
     }
+}
+
+function downloadOntology() {
+    window.location.href = "/api/v1/export/ontology.json";
 }
 
 async function uploadOntology(event) {
@@ -447,10 +448,27 @@ async function selectNode(id) {
     renderDetails(node, parents.parents);
 }
 
+function formatHierarchyPath(node) {
+    const full = node.full_label || "";
+    const parts = full.split(/\.\s+/);
+    const levels = ["Раздел", "Область"];
+    
+    if (parts.length === 0) return escapeHtml(node.label);
+    
+    return parts.map((part, i) => {
+        const match = part.match(/^(Раздел|Область):\s*(.+)$/);
+        if (match) {
+            const [, level, text] = match;
+            return `<div style="margin-bottom:0.25rem"><span class="muted" style="font-size:0.85em">${level}:</span> ${escapeHtml(text)}</div>`;
+        }
+        return `<div style="margin-bottom:0.25rem"><span class="muted" style="font-size:0.85em">Тема:</span> ${escapeHtml(part)}</div>`;
+    }).join("");
+}
+
 function renderDetails(node, parentEdges) {
     const parentBlock = parentEdges.length
         ? `<div class="parents-block">
-                <h3>Родители (${parentEdges.length})</h3>
+                <h3>Описания узла</h3>
                 ${parentEdges.map((edge) => {
                     const parentNode = state.nodesById.get(edge.source);
                     const parentLabel = parentNode
@@ -463,19 +481,17 @@ function renderDetails(node, parentEdges) {
                                 <div>${escapeHtml(d.text)}</div>
                             </div>`).join("")}</div>`
                         : '<div class="pending-banner">Описание не сгенерировано для этого пути.</div>';
-                    return `<details class="parent-edge">
-                        <summary>${parentLabel} <span class="muted">(${edge.descriptions.length})</span></summary>
-                        ${descs}
-                    </details>`;
+                    return descs;
                 }).join("")}
             </div>`
         : '<p class="muted">Узел без родителей (сирота).</p>';
 
+    const pathHtml = formatHierarchyPath(node);
     els.details.innerHTML = `
         <dl class="node-details">
             <dt>Код</dt><dd><code>${node.code || "—"}</code></dd>
             <dt>Название</dt><dd>${escapeHtml(node.label)}</dd>
-            <dt>Полный путь</dt><dd>${escapeHtml(node.full_label)}</dd>
+            <dt>Иерархия</dt><dd>${pathHtml}</dd>
             <dt>Уровень</dt><dd>${node.kind}</dd>
         </dl>
         ${parentBlock}
@@ -507,7 +523,7 @@ function hookSimilarSearch() {
             return;
         }
         try {
-            const resp = await fetch(`/api/v1/search?q=${encodeURIComponent(q)}&limit=5`);
+            const resp = await fetch(`/api/v1/search?q=${encodeURIComponent(q)}&limit=10`);
             if (!resp.ok) return;
             const nodes = await resp.json();
             if (!nodes.length) { els.modalAddSimilar.hidden = true; return; }
@@ -628,10 +644,7 @@ async function pollForDescriptions(targetNodeId) {
         const rootId = state.selectedL2 || state.selectedL1;
         if (!rootId) return;
         try {
-            const depthVal = parseInt(els.depth.value, 10);
-            const depth = Number.isFinite(depthVal) && depthVal >= 1
-                ? Math.min(depthVal, 10)
-                : (state.selectedL2 ? 3 : 4);
+            const depth = 10;
             const sg = await fetchSubgraph(rootId, depth);
             const edge = sg.edges.find((e) => e.target === targetNodeId);
             if (!edge) return;

@@ -4,7 +4,7 @@ import json
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import RedirectResponse, StreamingResponse
 
 from backend.application.add_node import AddNode, AddNodeCommand
 from backend.application.attach_edge import PREDICATE_CONTAINS, AttachEdge, AttachEdgeCommand
@@ -124,14 +124,34 @@ def delete_edge(
         raise HTTPException(status_code=404, detail=str(e)) from e
 
 
+@router.get("/export/download-url")
+def export_download_url(
+    repo: Annotated[JsonOntologyRepository, Depends(get_ontology_repository)],
+) -> dict:
+    presigned_url = repo.export_presigned_url()
+    if presigned_url:
+        return {"url": presigned_url}
+    raise HTTPException(status_code=501, detail="S3 not configured")
+
+
 @router.get("/export/ontology.json")
 def export_ontology(
     repo: Annotated[JsonOntologyRepository, Depends(get_ontology_repository)],
-) -> FileResponse:
-    return FileResponse(
-        path=repo.export_path(),
+):
+    presigned_url = repo.export_presigned_url()
+    if presigned_url:
+        return RedirectResponse(url=presigned_url, status_code=302)
+
+    def file_iterator(file_path, chunk_size: int = 8192):
+        with open(file_path, "rb") as f:
+            while chunk := f.read(chunk_size):
+                yield chunk
+
+    path = repo.export_path()
+    return StreamingResponse(
+        file_iterator(path),
         media_type="application/json",
-        filename="ontology_grnti.json",
+        headers={"Content-Disposition": "attachment; filename=ontology_grnti.json"},
     )
 
 

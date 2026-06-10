@@ -29,7 +29,7 @@ yc serverless container revision deploy \
   --container-id "${YC_CONTAINER_ID}" \
   --image "${IMAGE}" \
   --cores 1 \
-  --memory 512MB \
+  --memory 1024MB \
   --concurrency 4 \
   --execution-timeout 300s \
   --service-account-id "${YC_SA_ID}" \

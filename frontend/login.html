@@ -91,24 +91,27 @@
     </div>
 
     <script>
+        document.cookie = 'auth=; path=/; max-age=0; SameSite=Lax';
+
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            
+
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
             const errorMsg = document.getElementById('errorMsg');
-            
+            errorMsg.style.display = 'none';
+
             const credentials = btoa(username + ':' + password);
-            document.cookie = `auth=${credentials}; path=/; max-age=86400; SameSite=Lax`;
-            
+
             try {
                 const response = await fetch('/api/v1/search?q=test', {
                     headers: {
                         'Authorization': 'Basic ' + credentials
                     }
                 });
-                
+
                 if (response.ok) {
+                    document.cookie = `auth=${credentials}; path=/; max-age=86400; SameSite=Lax`;
                     const redirect = new URLSearchParams(window.location.search).get('redirect') || '/browse';
                     window.location.href = redirect;
                 } else {

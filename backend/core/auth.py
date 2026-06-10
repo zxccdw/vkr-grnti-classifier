@@ -32,11 +32,15 @@ class BasicAuthMiddleware(BaseHTTPMiddleware):
             credentials = base64.b64decode(authorization[6:]).decode("utf-8")
             username, password = credentials.split(":", 1)
         except Exception:
-            return JSONResponse(
-                status_code=401,
-                content={"detail": "Invalid authentication credentials"},
-                headers={"WWW-Authenticate": f'Basic realm="{settings.auth_realm}"'},
-            )
+            if request.url.path.startswith("/api/"):
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "Invalid authentication credentials"},
+                    headers={"WWW-Authenticate": f'Basic realm="{settings.auth_realm}"'},
+                )
+            response = RedirectResponse(url=f"/login?redirect={request.url.path}", status_code=303)
+            response.delete_cookie("auth")
+            return response
 
         username_correct = secrets.compare_digest(
             username.encode("utf-8"),
@@ -48,10 +52,14 @@ class BasicAuthMiddleware(BaseHTTPMiddleware):
         )
 
         if not (username_correct and password_correct):
-            return JSONResponse(
-                status_code=401,
-                content={"detail": "Incorrect username or password"},
-                headers={"WWW-Authenticate": f'Basic realm="{settings.auth_realm}"'},
-            )
+            if request.url.path.startswith("/api/"):
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "Incorrect username or password"},
+                    headers={"WWW-Authenticate": f'Basic realm="{settings.auth_realm}"'},
+                )
+            response = RedirectResponse(url=f"/login?redirect={request.url.path}", status_code=303)
+            response.delete_cookie("auth")
+            return response
 
         return await call_next(request)

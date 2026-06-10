@@ -11,9 +11,9 @@
     <header class="browse-header">
         <h1>Обозреватель онтологии ГРНТИ</h1>
         <div class="header-actions">
-            <label class="btn-secondary header-btn" for="import-input">Загрузить JSON</label>
-            <input id="import-input" type="file" accept="application/json,.json" hidden>
-            <a class="btn-secondary header-btn" href="/api/v1/export/ontology.json" download>Скачать JSON</a>
+            <label class="btn-secondary header-btn" for="import-input" style="display:none">Загрузить JSON</label>
+            <input id="import-input" type="file" accept="application/json,.json" style="display:none">
+<button id="export-btn" class="btn-secondary header-btn">Скачать JSON</button>
             <button id="merge-btn" class="btn-secondary">Объединить дубликаты</button>
             <button id="backfill-btn" class="btn-secondary" disabled>Догнать описания</button>
             <button id="pending-btn" class="btn-secondary">Pending ▾</button>
@@ -48,10 +48,7 @@
                 <div class="combobox-popup" hidden></div>
             </div>
 
-            <label for="depth-input">Глубина (число шагов вниз)</label>
-            <input id="depth-input" type="number" min="1" max="10" value="3">
-
-            <button id="open-btn" class="btn-primary" disabled>Открыть</button>
+<button id="open-btn" class="btn-primary" disabled>Открыть</button>
             <div id="status-msg" class="status-msg"></div>
         </aside>
 

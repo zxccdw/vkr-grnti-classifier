@@ -3,8 +3,10 @@ from __future__ import annotations
 import json
 import os
 from collections import defaultdict, deque
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from backend.domain.entities import (
     Description,
@@ -22,16 +24,26 @@ from backend.domain.errors import (
 )
 from backend.services.ontology import Ontology
 
+if TYPE_CHECKING:
+    from backend.infrastructure.s3_store import S3Store
+
 PREDICATE_CONTAINS = "http://example.org/competencies#содержит"
 
 EdgeKey = tuple[str, str, str]
 
 
 class JsonOntologyRepository:
-    def __init__(self, path: Path, snapshots_dir: Path, s3_store=None) -> None:
+    def __init__(
+        self,
+        path: Path,
+        snapshots_dir: Path,
+        s3_store: S3Store | None = None,
+        on_s3_write: Callable[[str | None], None] | None = None,
+    ) -> None:
         self._path = path
         self._snapshots_dir = snapshots_dir
         self._s3 = s3_store
+        self._on_s3_write = on_s3_write
         if self._s3:
             self._s3.download_to(path)
         self._raw: dict = json.loads(path.read_text(encoding="utf-8"))
@@ -211,8 +223,25 @@ class JsonOntologyRepository:
             lst[:] = [t for t in lst if t != id.value]
         self._ontology = Ontology.from_payload(self._raw)
 
+    def reload(self) -> None:
+        self._raw = json.loads(self._path.read_text(encoding="utf-8"))
+        self._nodes_by_id = {n["id"]: n for n in self._raw["nodes"]}
+        self._edges_by_key.clear()
+        self._incoming.clear()
+        self._outgoing.clear()
+        self._reindex_edges()
+        self._ontology = Ontology.from_payload(self._raw)
+        self._pending_nodes.clear()
+        self._pending_edges.clear()
+        self._pending_edge_updates.clear()
+
     def export_path(self) -> Path:
         return self._path
+
+    def export_presigned_url(self, expires_in: int = 3600) -> str | None:
+        if self._s3 is None:
+            return None
+        return self._s3.generate_download_url(expires_in=expires_in)
 
     def search(self, query: str, limit: int = 50) -> list[Node]:
         q_lower = query.lower()
@@ -394,6 +423,8 @@ class JsonOntologyRepository:
         os.replace(tmp, self._path)
         if self._s3:
             self._s3.upload_from(self._path)
+            if self._on_s3_write:
+                self._on_s3_write(self._s3.get_etag())
 
 
 def _node_from_raw(raw: dict) -> Node:

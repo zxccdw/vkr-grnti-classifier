@@ -1,3 +1,4 @@
+import time
 from functools import lru_cache
 
 from backend.application.add_node import AddNode
@@ -16,24 +17,66 @@ from backend.services.cascade import CascadeClassifier
 from backend.services.embedder import TextEmbedder
 from backend.services.ontology import Ontology
 
+_repo: JsonOntologyRepository | None = None
+_repo_etag: str | None = None
+_repo_s3: S3Store | None = None
+_repo_etag_checked_at: float = 0.0
+_ETAG_CHECK_INTERVAL = 30.0  # seconds
 
-@lru_cache
-def get_ontology_repository() -> JsonOntologyRepository:
+
+def _notify_s3_written(new_etag: str | None) -> None:
+    """Call after writing to S3 so the cache stays valid without a reload."""
+    global _repo_etag, _repo_etag_checked_at
+    _repo_etag = new_etag
+    _repo_etag_checked_at = time.monotonic()
+
+
+def _make_s3_store() -> S3Store | None:
     settings = get_settings()
-    s3_store = None
     if settings.s3_bucket and settings.s3_access_key_id and settings.s3_secret_access_key:
-        s3_store = S3Store(
+        return S3Store(
             bucket=settings.s3_bucket,
             key=settings.s3_key,
             endpoint_url=settings.s3_endpoint_url,
             access_key_id=settings.s3_access_key_id,
             secret_access_key=settings.s3_secret_access_key,
         )
-    return JsonOntologyRepository(
-        path=settings.ontology_path,
-        snapshots_dir=settings.ontology_snapshots_dir,
-        s3_store=s3_store,
-    )
+    return None
+
+
+def get_ontology_repository() -> JsonOntologyRepository:
+    global _repo, _repo_etag, _repo_s3, _repo_etag_checked_at
+    settings = get_settings()
+
+    if _repo_s3 is None:
+        _repo_s3 = _make_s3_store()
+
+    if _repo_s3 is not None:
+        now = time.monotonic()
+        if _repo is None or (now - _repo_etag_checked_at) > _ETAG_CHECK_INTERVAL:
+            current_etag = _repo_s3.get_etag()
+            _repo_etag_checked_at = now
+            if _repo is None:
+                _repo = JsonOntologyRepository(
+                    path=settings.ontology_path,
+                    snapshots_dir=settings.ontology_snapshots_dir,
+                    s3_store=_repo_s3,
+                    on_s3_write=_notify_s3_written,
+                )
+                _repo_etag = current_etag
+            elif current_etag != _repo_etag:
+                _repo_s3.download_to(settings.ontology_path)
+                _repo.reload()
+                _repo_etag = current_etag
+        return _repo
+
+    if _repo is None:
+        _repo = JsonOntologyRepository(
+            path=settings.ontology_path,
+            snapshots_dir=settings.ontology_snapshots_dir,
+            s3_store=None,
+        )
+    return _repo
 
 
 def get_ontology() -> Ontology:

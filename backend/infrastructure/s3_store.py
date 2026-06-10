@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import cast
 
 logger = logging.getLogger(__name__)
 
@@ -42,3 +43,26 @@ class S3Store:
             print(f"s3 upload ok: s3://{self._bucket}/{self._key}")
         except Exception as e:
             print(f"s3 upload failed: {e}")
+
+    def get_etag(self) -> str | None:
+        try:
+            resp = self._client.head_object(Bucket=self._bucket, Key=self._key)
+            etag = resp.get("ETag")
+            return etag if isinstance(etag, str) else None
+        except Exception:
+            return None
+
+    def generate_download_url(self, expires_in: int = 3600) -> str:
+        """Generate presigned URL for download (default 1 hour)"""
+        return cast(
+            str,
+            self._client.generate_presigned_url(
+                "get_object",
+                Params={
+                    "Bucket": self._bucket,
+                    "Key": self._key,
+                    "ResponseContentDisposition": "attachment; filename=ontology_grnti.json",
+                },
+                ExpiresIn=expires_in,
+            ),
+        )
