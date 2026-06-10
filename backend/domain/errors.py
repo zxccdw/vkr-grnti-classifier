@@ -23,3 +23,7 @@ class EdgeNotFound(DomainError):
 
 class InvalidDepth(DomainError):
     pass
+
+
+class ConcurrentModificationError(DomainError):
+    pass

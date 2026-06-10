@@ -17,6 +17,7 @@ from backend.domain.entities import (
     Subgraph,
 )
 from backend.domain.errors import (
+    ConcurrentModificationError,
     EdgeAlreadyExists,
     EdgeNotFound,
     NodeAlreadyExists,
@@ -44,8 +45,10 @@ class JsonOntologyRepository:
         self._snapshots_dir = snapshots_dir
         self._s3 = s3_store
         self._on_s3_write = on_s3_write
+        self._etag: str | None = None
         if self._s3:
             self._s3.download_to(path)
+            self._etag = self._s3.get_etag()
         self._raw: dict = json.loads(path.read_text(encoding="utf-8"))
         self._nodes_by_id: dict[str, dict] = {n["id"]: n for n in self._raw["nodes"]}
         self._edges_by_key: dict[EdgeKey, dict] = {}
@@ -234,6 +237,8 @@ class JsonOntologyRepository:
         self._pending_nodes.clear()
         self._pending_edges.clear()
         self._pending_edge_updates.clear()
+        if self._s3:
+            self._etag = self._s3.get_etag()
 
     def export_path(self) -> Path:
         return self._path
@@ -422,9 +427,16 @@ class JsonOntologyRepository:
         )
         os.replace(tmp, self._path)
         if self._s3:
-            self._s3.upload_from(self._path)
-            if self._on_s3_write:
-                self._on_s3_write(self._s3.get_etag())
+            try:
+                new_etag = self._s3.upload_from(self._path, if_match=self._etag)
+                if self._on_s3_write:
+                    self._on_s3_write(new_etag)
+            except Exception as e:
+                if "PreconditionFailed" in str(e) or "412" in str(e):
+                    raise ConcurrentModificationError(
+                        "Ontology was modified by another user. Please refresh and try again."
+                    ) from e
+                raise
 
 
 def _node_from_raw(raw: dict) -> Node:

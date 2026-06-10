@@ -21,6 +21,7 @@ from backend.core.dependencies import (
 )
 from backend.domain.entities import Edge, Node, NodeId
 from backend.domain.errors import (
+    ConcurrentModificationError,
     EdgeAlreadyExists,
     EdgeNotFound,
     InvalidDepth,
@@ -53,6 +54,8 @@ def create_node(
         node = use_case.execute(CreateNodeCommand(label=request.label, code=request.code))
     except NodeAlreadyExists as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
+    except ConcurrentModificationError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
     return _node_to_dto(node)
 
 
@@ -71,7 +74,7 @@ async def create_node_with_edge(
         )
     except NodeNotFound as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
-    except NodeAlreadyExists as e:
+    except (NodeAlreadyExists, ConcurrentModificationError) as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
     except InvalidDepth as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
@@ -93,7 +96,7 @@ async def attach_edge(
         )
     except NodeNotFound as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
-    except EdgeAlreadyExists as e:
+    except (EdgeAlreadyExists, ConcurrentModificationError) as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
     except InvalidDepth as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
@@ -109,6 +112,8 @@ def delete_node(
         repo.remove_node(NodeId(node_id))
     except NodeNotFound as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
+    except ConcurrentModificationError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
 
 
 @router.delete("/edges", status_code=204)
@@ -122,6 +127,8 @@ def delete_edge(
         repo.remove_edge(NodeId(source), NodeId(target), predicate)
     except EdgeNotFound as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
+    except ConcurrentModificationError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
 
 
 @router.get("/export/download-url")
@@ -198,7 +205,10 @@ async def backfill_descriptions(
     use_case: Annotated[BackfillDescriptions, Depends(get_backfill_use_case)],
     batch: Annotated[int, Query(ge=1, le=1000)] = 5,
 ) -> BackfillResponse:
-    report = await use_case.execute(batch=batch)
+    try:
+        report = await use_case.execute(batch=batch)
+    except ConcurrentModificationError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
     return BackfillResponse(filled=report.filled, still_pending=report.still_pending)
 
 
@@ -206,7 +216,10 @@ async def backfill_descriptions(
 def merge_duplicates(
     use_case: Annotated[MergeDuplicatesByLabel, Depends(get_merge_duplicates_use_case)],
 ) -> dict:
-    report = use_case.execute()
+    try:
+        report = use_case.execute()
+    except ConcurrentModificationError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
     return {
         "groups_merged": report.groups_merged,
         "nodes_removed": report.nodes_removed,

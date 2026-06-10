@@ -37,12 +37,27 @@ class S3Store:
             print(f"s3 download failed ({e}), using local file")
             return False
 
-    def upload_from(self, path: Path) -> None:
+    def upload_from(self, path: Path, if_match: str | None = None) -> str | None:
+        """Upload file and return ETag of the uploaded object, or None on failure."""
         try:
-            self._client.upload_file(str(path), self._bucket, self._key)
-            print(f"s3 upload ok: s3://{self._bucket}/{self._key}")
+            data = path.read_bytes()
+            kwargs = {
+                "Bucket": self._bucket,
+                "Key": self._key,
+                "Body": data,
+                "ContentType": "application/json",
+            }
+            if if_match:
+                kwargs["IfMatch"] = if_match
+            resp = self._client.put_object(**kwargs)
+            etag: str | None = resp.get("ETag")
+            print(f"s3 upload ok: s3://{self._bucket}/{self._key} etag={etag}")
+            return etag if isinstance(etag, str) else None
         except Exception as e:
+            if "PreconditionFailed" in str(e) or "412" in str(e):
+                raise  # Re-raise 412 errors
             print(f"s3 upload failed: {e}")
+            return None
 
     def get_etag(self) -> str | None:
         try:

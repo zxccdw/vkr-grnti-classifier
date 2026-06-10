@@ -1,3 +1,4 @@
+import logging
 import time
 from functools import lru_cache
 
@@ -17,11 +18,13 @@ from backend.services.cascade import CascadeClassifier
 from backend.services.embedder import TextEmbedder
 from backend.services.ontology import Ontology
 
+logger = logging.getLogger(__name__)
+
 _repo: JsonOntologyRepository | None = None
 _repo_etag: str | None = None
 _repo_s3: S3Store | None = None
 _repo_etag_checked_at: float = 0.0
-_ETAG_CHECK_INTERVAL = 30.0  # seconds
+_ETAG_CHECK_INTERVAL = 5.0  # seconds
 
 
 def _notify_s3_written(new_etag: str | None) -> None:
@@ -115,16 +118,18 @@ def get_llm_providers() -> list:
     settings = get_settings()
     providers: list = []
     if settings.gigachat_credentials:
-        providers.append(
-            GigaChatProvider(
-                credentials=settings.gigachat_credentials,
-                model=settings.gigachat_model,
-                temperature=settings.llm_temperature,
-                max_tokens=settings.llm_max_tokens,
-                timeout=settings.llm_timeout,
-                verify_ssl=settings.gigachat_verify_ssl,
-            )
+        giga = GigaChatProvider(
+            credentials=settings.gigachat_credentials,
+            model=settings.gigachat_model,
+            temperature=settings.llm_temperature,
+            max_tokens=settings.llm_max_tokens,
+            timeout=settings.llm_timeout,
+            verify_ssl=settings.gigachat_verify_ssl,
         )
+        if giga.is_available():
+            providers.append(giga)
+        else:
+            logger.warning("GigaChat unavailable: token fetch failed, provider skipped")
     elif settings.gigachat_base_url and settings.gigachat_token:
         providers.append(
             OpenAICompatibleProvider(
