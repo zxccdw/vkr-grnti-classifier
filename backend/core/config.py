@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     openai_embeddings_model: str = "openai/text-embedding-3-small"
     openai_embeddings_verify_ssl: bool = True
 
-    default_top_k: int = 5
+    default_top_k: int = 12
     beam_width: int = 5
 
     llm_temperature: float = 0.3

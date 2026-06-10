@@ -98,6 +98,43 @@ def classify_l3(
     return ClassifyResponse(predictions=predictions)
 
 
+@router.post("/by-parent", response_model=ClassifyResponse)
+def classify_by_parent(
+    request: ClassifyLevelRequest,
+    classifier: Annotated[CascadeClassifier, Depends(get_classifier)],
+) -> ClassifyResponse:
+    if not request.parent_code:
+        raise HTTPException(status_code=400, detail="parent_code required")
+
+    try:
+        parent_node = classifier.ontology.code_to_node(request.parent_code)
+        if parent_node is None:
+            raise HTTPException(
+                status_code=404, detail=f"Parent code '{request.parent_code}' not found"
+            )
+
+        results = classifier.classify_level(
+            request.text,
+            parent_node_id=parent_node.id,
+            top_k=request.top_k,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    predictions = [
+        Prediction(
+            code=node.code or "",
+            label=node.label,
+            full_label=node.full_label,
+            score=score,
+            depth=node.depth,
+        )
+        for node, score in results
+    ]
+
+    return ClassifyResponse(predictions=predictions)
+
+
 @router.post("/full", response_model=FullCascadeResponse)
 def classify_full(
     request: ClassifyRequest,
@@ -106,28 +143,24 @@ def classify_full(
     results = classifier.classify_full(
         request.text,
         top_k=request.top_k,
-        beam_width=5,
+        beam_width=max(request.top_k, 12),  # beam_width >= top_k to find enough paths
     )
 
     predictions = []
     for path, score in results:
-        if len(path) != 3:
+        if not path:
             continue
 
-        l1_node, l2_node, l3_node = path
-        full_path_label = f"{l1_node.label} → {l2_node.label} → {l3_node.label}"
+        leaf_node = path[-1]
+        full_path_label = " → ".join(n.label for n in path)
 
-        level_scores = {
-            "L1": 0.9,
-            "L2": 0.8,
-            "L3": score,
-        }
+        level_scores = {f"L{i + 1}": score for i, n in enumerate(path)}
 
         predictions.append(
             FullCascadePrediction(
-                code=l3_node.code or "",
-                label=l3_node.label,
-                full_label=l3_node.full_label,
+                code=leaf_node.code or "",
+                label=leaf_node.label,
+                full_label=leaf_node.full_label,
                 path=[n.code or "" for n in path],
                 full_path_label=full_path_label,
                 score=score,

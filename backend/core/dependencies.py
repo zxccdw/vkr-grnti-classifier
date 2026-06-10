@@ -24,14 +24,44 @@ _repo: JsonOntologyRepository | None = None
 _repo_etag: str | None = None
 _repo_s3: S3Store | None = None
 _repo_etag_checked_at: float = 0.0
-_ETAG_CHECK_INTERVAL = 5.0  # seconds
+_ETAG_CHECK_INTERVAL = 2.0  # seconds (check S3 for changes every 2 sec)
+_classifier: CascadeClassifier | None = None
 
 
 def _notify_s3_written(new_etag: str | None) -> None:
     """Call after writing to S3 so the cache stays valid without a reload."""
-    global _repo_etag, _repo_etag_checked_at
+    global _repo, _repo_etag, _repo_etag_checked_at, _classifier
+    etag_preview = new_etag[:16] if new_etag else "None"
+    logger.info(f"S3 write completed, updating cache (new ETag: {etag_preview}...)")
     _repo_etag = new_etag
     _repo_etag_checked_at = time.monotonic()
+
+    # Invalidate repo cache to reload ontology from S3
+    if _repo:
+        logger.info("Reloading ontology from S3...")
+        try:
+            _repo.reload()
+            logger.info(f"Ontology reloaded: {len(_repo._raw.get('nodes', []))} nodes")
+        except Exception as e:
+            logger.error(f"Failed to reload ontology: {e}", exc_info=True)
+
+    # Clear classifier cache when ontology changes (ontology instance may have been recreated)
+    if _classifier:
+        old_size = len(_classifier._anchor_cache)
+        logger.info(f"Clearing embeddings cache ({old_size} entries)...")
+        # Update classifier's ontology reference to the newly reloaded one
+        _classifier.ontology = get_ontology()
+        _classifier.clear_cache()
+        logger.info("Cache cleared, classifier ontology updated")
+
+        # Save cache to persist computed embeddings across restarts
+        try:
+            settings = get_settings()
+            cache_path = settings.data_dir / "embeddings_cache.pkl.gz"
+            saved_count = _classifier.save_cache(cache_path)
+            logger.info(f"Saved embeddings cache: {saved_count} entries to {cache_path}")
+        except Exception as e:
+            logger.warning(f"Failed to save embeddings cache: {e}")
 
 
 def _make_s3_store() -> S3Store | None:
@@ -107,10 +137,24 @@ def get_embedder():
 
 @lru_cache
 def get_classifier() -> CascadeClassifier:
-    return CascadeClassifier(
+    global _classifier
+    settings = get_settings()
+    cache_path = settings.data_dir / "embeddings_cache.pkl.gz"
+
+    _classifier = CascadeClassifier(
         embedder=get_embedder(),
         ontology=get_ontology(),
     )
+
+    # Load cached embeddings if available
+    if cache_path.exists():
+        try:
+            loaded = _classifier.load_cache(cache_path)
+            logger.info(f"Loaded {loaded} cached embeddings")
+        except Exception as e:
+            logger.warning(f"Failed to load embeddings cache: {e}")
+
+    return _classifier
 
 
 @lru_cache

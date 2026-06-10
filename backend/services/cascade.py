@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import gzip
+import logging
 import pickle
 from pathlib import Path
 
@@ -8,6 +9,8 @@ import numpy as np
 
 from backend.services.embedder import TextEmbedder
 from backend.services.ontology import Node, Ontology, build_anchor_texts
+
+logger = logging.getLogger(__name__)
 
 
 class CascadeClassifier:
@@ -29,6 +32,30 @@ class CascadeClassifier:
             if k not in self._anchor_cache:
                 self._anchor_cache[k] = np.asarray(v, dtype=np.float32)
         return len(data)
+
+    def clear_cache(self) -> None:
+        """Clear embeddings cache when ontology changes."""
+        self._anchor_cache.clear()
+
+    def cleanup_cache(self) -> None:
+        """Remove embeddings for nodes that no longer exist in ontology."""
+        all_node_ids = {node.id for node in self.ontology.all_nodes()}
+        to_remove = [
+            key
+            for key in self._anchor_cache.keys()
+            if key[1] not in all_node_ids  # key is (parent_id, node_id)
+        ]
+
+        if to_remove:
+            for key in to_remove:
+                del self._anchor_cache[key]
+            logger.info(
+                f"Cleaned {len(to_remove)} stale embeddings from cache (cache now has {len(self._anchor_cache)} entries)"
+            )
+        else:
+            logger.debug(
+                f"No stale embeddings to clean (cache has {len(self._anchor_cache)} entries)"
+            )
 
     def _anchor_texts(self, parent_id: str, node: Node) -> list[str]:
         anchors = list(build_anchor_texts(node))
@@ -78,7 +105,7 @@ class CascadeClassifier:
         self,
         text: str,
         parent_node_id: str | None = None,
-        top_k: int = 5,
+        top_k: int = 12,
     ) -> list[tuple[Node, float]]:
         query_emb = self.embedder.encode_single(text)
         parent_id = parent_node_id or self.ontology.root_id
@@ -86,14 +113,14 @@ class CascadeClassifier:
         ranked = self._compute_similarities(query_emb, parent_id, candidates)
         return ranked[:top_k]
 
-    def classify_l1(self, text: str, top_k: int = 5) -> list[tuple[Node, float]]:
+    def classify_l1(self, text: str, top_k: int = 12) -> list[tuple[Node, float]]:
         return self.classify_level(text, parent_node_id=None, top_k=top_k)
 
     def classify_l2(
         self,
         text: str,
         l1_code: str,
-        top_k: int = 5,
+        top_k: int = 12,
     ) -> list[tuple[Node, float]]:
         l1_node = self.ontology.code_to_node(l1_code)
         if l1_node is None:
@@ -104,7 +131,7 @@ class CascadeClassifier:
         self,
         text: str,
         l2_code: str,
-        top_k: int = 5,
+        top_k: int = 12,
     ) -> list[tuple[Node, float]]:
         l2_node = self.ontology.code_to_node(l2_code)
         if l2_node is None:
@@ -114,44 +141,56 @@ class CascadeClassifier:
     def classify_full(
         self,
         text: str,
-        top_k: int = 10,
-        beam_width: int = 5,
+        top_k: int = 12,
+        beam_width: int = 10,
     ) -> list[tuple[list[Node], float]]:
         query_emb = self.embedder.encode_single(text)
-
         root_id = self.ontology.root_id
-        l1_candidates = self.ontology.children(root_id)
-        l1_ranked = self._compute_similarities(query_emb, root_id, l1_candidates)[:beam_width]
 
-        l2_beams: list[tuple[list[Node], float]] = []
-        for l1_node, l1_score in l1_ranked:
-            l2_candidates = self.ontology.children(l1_node.id)
-            if not l2_candidates:
-                continue
-            l2_ranked = self._compute_similarities(query_emb, l1_node.id, l2_candidates)[
+        # Start from root
+        candidates = self.ontology.children(root_id)
+        current_paths: list[tuple[list[Node], float]] = [
+            ([node], float(score))
+            for node, score in self._compute_similarities(query_emb, root_id, candidates)[
                 :beam_width
             ]
-            for l2_node, l2_score in l2_ranked:
-                agg_score = np.sqrt(l1_score * l2_score)
-                l2_beams.append(([l1_node, l2_node], float(agg_score)))
+        ]
 
-        l2_beams.sort(key=lambda x: x[1], reverse=True)
-        l2_beams = l2_beams[:beam_width]
+        result_paths: list[tuple[list[Node], float]] = []
 
-        l3_results: list[tuple[list[Node], float]] = []
-        for path, l2_agg_score in l2_beams:
-            l2_node = path[-1]
-            l3_candidates = self.ontology.children(l2_node.id)
-            if not l3_candidates:
-                continue
-            l3_ranked = self._compute_similarities(query_emb, l2_node.id, l3_candidates)[
-                :beam_width
-            ]
-            for l3_node, l3_score in l3_ranked:
-                l1_score = l1_ranked[0][1] if l1_ranked else 1.0
-                final_score = np.power(l1_score * l2_agg_score * l3_score, 1 / 3)
-                full_path = path + [l3_node]
-                l3_results.append((full_path, float(final_score)))
+        # Expand paths level by level until we have enough leaf paths
+        for _ in range(10):  # Max 10 levels to prevent infinite loops
+            next_paths: list[tuple[list[Node], float]] = []
 
-        l3_results.sort(key=lambda x: x[1], reverse=True)
-        return l3_results[:top_k]
+            for path, path_score in current_paths:
+                last_node = path[-1]
+                children = self.ontology.children(last_node.id)
+
+                if not children:
+                    # Leaf node - add to results
+                    result_paths.append((path, path_score))
+                else:
+                    # Non-leaf - expand to children
+                    ranked = self._compute_similarities(query_emb, last_node.id, children)[
+                        :beam_width
+                    ]
+                    for child_node, child_score in ranked:
+                        # Geometric mean of all scores
+                        num_levels = len(path) + 1
+                        combined_score = np.power(path_score * child_score, 1 / num_levels)
+                        next_paths.append((path + [child_node], float(combined_score)))
+
+            if not next_paths:
+                # No more paths to expand
+                break
+
+            # Keep top beam_width paths for next iteration
+            next_paths.sort(key=lambda x: x[1], reverse=True)
+            current_paths = next_paths[:beam_width]
+
+            if len(result_paths) >= top_k:
+                break
+
+        # Return top_k leaf paths
+        result_paths.sort(key=lambda x: x[1], reverse=True)
+        return result_paths[:top_k]

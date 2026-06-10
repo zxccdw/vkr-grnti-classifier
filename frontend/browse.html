@@ -34,21 +34,24 @@
     <main class="browse-layout">
         <aside class="panel panel-left">
             <h2>Скоуп</h2>
-            <label for="l1-input">Раздел (L1):</label>
+            <label for="l1-input">Раздел:</label>
             <div class="combobox" data-cb="l1">
                 <input id="l1-input" type="text" autocomplete="off"
                        placeholder="Код или название (например: 34 или Биология)">
                 <div class="combobox-popup" hidden></div>
             </div>
 
-            <label for="l2-input">Подраздел (L2):</label>
+            <label for="l2-input">Подраздел:</label>
             <div class="combobox" data-cb="l2">
                 <input id="l2-input" type="text" autocomplete="off" disabled
                        placeholder="Опционально">
                 <div class="combobox-popup" hidden></div>
             </div>
 
-<button id="open-btn" class="btn-primary" disabled>Открыть</button>
+<div style="display: flex; gap: 0.5rem;">
+                <button id="open-btn" class="btn-primary" disabled>Открыть</button>
+                <button id="reset-btn" class="btn-secondary">Сбросить</button>
+            </div>
             <div id="status-msg" class="status-msg"></div>
         </aside>
 

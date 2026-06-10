@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
@@ -41,6 +42,8 @@ from backend.schemas.node_schemas import (
     ParentsOut,
     SubgraphOut,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["ontology"])
 
@@ -108,12 +111,19 @@ def delete_node(
     node_id: Annotated[str, Query(..., min_length=1)],
     repo: Annotated[JsonOntologyRepository, Depends(get_ontology_repository)],
 ) -> None:
+    logger.info(f"Deleting node: {node_id}")
     try:
         repo.remove_node(NodeId(node_id))
+        logger.info(f"Node deleted successfully: {node_id}")
     except NodeNotFound as e:
+        logger.warning(f"Node not found: {node_id}")
         raise HTTPException(status_code=404, detail=str(e)) from e
     except ConcurrentModificationError as e:
+        logger.warning(f"Concurrent modification while deleting node {node_id}: {e}")
         raise HTTPException(status_code=409, detail=str(e)) from e
+    except Exception as e:
+        logger.error(f"Unexpected error deleting node {node_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to delete node: {e}") from e
 
 
 @router.delete("/edges", status_code=204)

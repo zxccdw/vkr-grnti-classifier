@@ -4,7 +4,7 @@ import json
 import os
 from collections import defaultdict, deque
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -415,7 +415,7 @@ class JsonOntologyRepository:
 
     def _snapshot(self) -> None:
         self._snapshots_dir.mkdir(parents=True, exist_ok=True)
-        ts = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
+        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")  # noqa: UP017
         target = self._snapshots_dir / f"{ts}.json"
         target.write_bytes(self._path.read_bytes())
 
@@ -428,7 +428,10 @@ class JsonOntologyRepository:
         os.replace(tmp, self._path)
         if self._s3:
             try:
-                new_etag = self._s3.upload_from(self._path, if_match=self._etag)
+                # Refresh ETag before write to avoid stale cache issues
+                current_etag = self._s3.get_etag()
+                new_etag = self._s3.upload_from(self._path, if_match=current_etag)
+                self._etag = new_etag
                 if self._on_s3_write:
                     self._on_s3_write(new_etag)
             except Exception as e:

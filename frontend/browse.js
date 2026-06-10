@@ -1,6 +1,29 @@
 const ROOT_ID = "http://example.org/grnti_root";
 const PREDICATE_LABEL = "содержит";
 
+// localStorage persistence for browse filters
+function saveFilters() {
+    const filters = {
+        l1: state.selectedL1,
+        l2: state.selectedL2,
+    };
+    localStorage.setItem('grnti_browse_filters', JSON.stringify(filters));
+    console.log('[GRNTI Browse] Saved filters:', filters);
+}
+
+function loadFilters() {
+    const saved = localStorage.getItem('grnti_browse_filters');
+    if (saved) {
+        try {
+            const filters = JSON.parse(saved);
+            return filters;
+        } catch (e) {
+            return null;
+        }
+    }
+    return null;
+}
+
 const state = {
     selectedL1: null,
     selectedL2: null,
@@ -49,6 +72,7 @@ const combos = {
         onSelect: async (node) => {
             state.selectedL1 = node ? node.id : null;
             state.selectedL2 = null;
+            saveFilters();
             combos.l2.clear();
             els.l2.disabled = !node;
             els.openBtn.disabled = !node;
@@ -69,6 +93,7 @@ const combos = {
     l2: createCombobox("l2", {
         onSelect: (node) => {
             state.selectedL2 = node ? node.id : null;
+            saveFilters();
             els.openBtn.disabled = !state.selectedL1;
         },
     }),
@@ -88,6 +113,12 @@ async function init() {
     els.importInput.addEventListener("change", uploadOntology);
 document.getElementById("export-btn").addEventListener("click", downloadOntology);
     document.getElementById("pending-btn").addEventListener("click", togglePendingPopup);
+    document.getElementById("reset-btn").addEventListener("click", () => {
+        document.getElementById("l1-input").value = "";
+        document.getElementById("l2-input").value = "";
+        document.getElementById("l2-input").disabled = true;
+        document.getElementById("open-btn").disabled = true;
+    });
     els.modalAddCancel.addEventListener("click", () => (els.modalAdd.hidden = true));
     els.modalAddSubmit.addEventListener("click", submitAddNode);
     hookSimilarSearch();

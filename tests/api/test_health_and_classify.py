@@ -17,6 +17,7 @@ ROOT_ID = "http://example.org/grnti_root"
 L1_ID = "http://example.org/competencies#GRNTI_34"
 L2_ID = "http://example.org/competencies#GRNTI_34_15"
 L3_ID = "http://example.org/competencies#GRNTI_34_15_23"
+L4_ID = "http://example.org/competencies#GRNTI_34_15_23_01"
 
 
 @pytest.fixture
@@ -28,11 +29,13 @@ def ontology() -> Ontology:
                 {"id": L1_ID, "label": "Биология", "code": "34"},
                 {"id": L2_ID, "label": "Генетика", "code": "34.15"},
                 {"id": L3_ID, "label": "Геномика", "code": "34.15.23"},
+                {"id": L4_ID, "label": "Полногеномный секвенсинг", "code": "34.15.23.01"},
             ],
             "links": [
                 {"source": ROOT_ID, "target": L1_ID, "predicate": PRED},
                 {"source": L1_ID, "target": L2_ID, "predicate": PRED},
                 {"source": L2_ID, "target": L3_ID, "predicate": PRED},
+                {"source": L3_ID, "target": L4_ID, "predicate": PRED},
             ],
         }
     )
@@ -155,3 +158,16 @@ def test_real_cascade_classify_l2_with_invalid_parent_raises(
     classifier = CascadeClassifier(embedder=FakeEmbedder(), ontology=ontology)
     with pytest.raises(ValueError):
         classifier.classify_l2("x", l1_code="99", top_k=1)
+
+
+def test_classify_full_with_l4_levels(ontology: Ontology) -> None:
+    classifier = CascadeClassifier(embedder=FakeEmbedder(), ontology=ontology)
+    results = classifier.classify_full("Генетика и геномика", top_k=5, beam_width=5)
+    assert len(results) > 0
+    for path, score in results:
+        assert isinstance(path, list)
+        assert len(path) >= 3
+        assert 0.0 <= score <= 1.0 + 1e-6
+        # If L4 exists in path, it should be the deepest
+        if len(path) == 4:
+            assert path[-1].code == "34.15.23.01"
